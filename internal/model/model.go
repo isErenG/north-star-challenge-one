@@ -24,6 +24,14 @@ type Record struct {
 	GoogleError  string         `json:"googleError,omitempty"`
 	Verification *Verification  `json:"verification,omitempty"`
 	Suggestions  []Suggestion   `json:"suggestions,omitempty"`
+	// DuplicateGroup, MergedInto and MergedFrom are set by internal/dedupe.
+	// DuplicateGroup is the canonical record's ID, shared by every member of
+	// a near-duplicate cluster. MergedInto is set on a merged-away record to
+	// the same ID; the canonical keeps MergedInto empty and lists what it
+	// absorbed in MergedFrom (their number, or name if the number was blank).
+	DuplicateGroup string   `json:"duplicateGroup,omitempty"`
+	MergedInto     string   `json:"mergedInto,omitempty"`
+	MergedFrom     []string `json:"mergedFrom,omitempty"`
 }
 
 // Evidence is one piece of support for a suggestion.

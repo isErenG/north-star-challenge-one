@@ -72,7 +72,7 @@ test('Dutch upload, backend errors, review, language switching, and unchanged ex
   await expect(
     page.getByRole('heading', { name: 'Klaar om na te kijken.' })
   ).toBeVisible();
-  await expect(page.locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tbody tr')).toHaveCount(2);
   await expect(page.getByText('Dubbel nummer').first()).toBeVisible();
   const jobURL = page.url();
   await page
@@ -191,10 +191,10 @@ test('map view labels follow the language without changing the results', async (
   await page.getByRole('button', { name: 'Kaart', exact: true }).click();
   await expect(page.getByLabel('Kleuren van kaartmarkeringen')).toBeVisible();
   await expect(page.locator('.map-status')).toContainText(
-    'van 3 records hebben coördinaten'
+    'van 2 records hebben coördinaten'
   );
   await page.getByRole('combobox', { name: 'Taal' }).selectOption('en');
   await expect(page.getByLabel('Marker colours')).toBeVisible();
   await page.getByRole('button', { name: 'List', exact: true }).click();
-  await expect(page.locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tbody tr')).toHaveCount(2);
 });

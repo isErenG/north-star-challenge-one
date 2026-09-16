@@ -99,6 +99,9 @@ export interface Business {
   googleError?: string;
   verification?: Verification;
   suggestions?: Suggestion[];
+  duplicateGroup?: string;
+  mergedInto?: string;
+  mergedFrom?: string[];
 }
 export interface Enrichment {
   sources: string[];

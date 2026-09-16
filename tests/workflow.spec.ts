@@ -33,7 +33,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
   await expect(
     page.getByRole('heading', { name: 'Ready for a closer look.' })
   ).toBeVisible();
-  await expect(page.locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tbody tr')).toHaveCount(2);
   await page.screenshot({
     path: '.context/results-desktop.png',
     fullPage: true
@@ -43,7 +43,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
   if (mapConfigured) {
     await mapButton.click();
     await expect(
-      page.getByText('3 of 3 records have coordinates')
+      page.getByText('2 of 2 records have coordinates')
     ).toBeVisible();
     await expect(page.locator('.mapboxgl-canvas')).toBeVisible();
     await expect(page.getByText('Loading map…')).toBeHidden({ timeout: 20000 });
@@ -51,14 +51,14 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
     await page.screenshot({ path: '.context/results-map.png' });
     await page.getByRole('button', { name: 'Needs review' }).click();
     await expect(
-      page.getByText('2 of 2 records have coordinates')
+      page.getByText('1 of 1 records have coordinates')
     ).toBeVisible();
     await page.getByRole('button', { name: 'All records' }).click();
     await page.getByRole('button', { name: 'List', exact: true }).click();
   } else {
     await expect(mapButton).toHaveAttribute('title', /MAPBOX_ACCESS_TOKEN/);
   }
-  await expect(page.locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tbody tr')).toHaveCount(2);
   await page
     .getByRole('button', { name: 'Review Voorbeeld Atelier', exact: true })
     .first()
@@ -88,7 +88,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
   await page.getByRole('button', { name: 'Download JSON' }).click();
   const saved = await dl;
   const result = JSON.parse(await readFile((await saved.path())!, 'utf8'));
-  expect(result.records).toHaveLength(3);
+  expect(result.records).toHaveLength(2);
   expect(result.records[0].name).toBe('Reviewed example');
   expect(result.records[0].source.Maatschappelijke_naam).toBe(
     'Voorbeeld Atelier'
@@ -108,7 +108,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
       .click();
     const contents = await readFile((await (await download).path())!, 'utf8');
     if (format === 'GeoJSON')
-      expect(JSON.parse(contents).features).toHaveLength(3);
+      expect(JSON.parse(contents).features).toHaveLength(2);
     else expect(contents).toContain('review_name');
   }
   expect(errors).toEqual([]);

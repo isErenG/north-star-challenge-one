@@ -1188,6 +1188,57 @@ footer > div {
   background: #f5e6e2;
   color: #8a4a3a;
 }
+.merged-badge {
+  margin-top: 6px;
+  background: #eef2e6;
+  color: #55684a;
+  border: 1px solid #dde5d0;
+}
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 4px;
+  border: 1px solid #dde5d0;
+  background: #fff;
+  color: #6f845b;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.group-toggle:hover {
+  background: #f1f5eb;
+}
+.group-toggle[aria-expanded='true'] {
+  transform: rotate(90deg);
+  background: #eaf3e2;
+  color: #4b7435;
+}
+.sub-row td {
+  background: #fafbf7;
+}
+.sub-row .address-cell,
+.sub-row .row-secondary {
+  color: #93a085;
+}
+.sub-thread {
+  display: inline-block;
+  width: 14px;
+  height: 1px;
+  background: #cbd6ce;
+  margin-right: 8px;
+  vertical-align: middle;
+}
 .review-button {
   display: flex;
   align-items: center;

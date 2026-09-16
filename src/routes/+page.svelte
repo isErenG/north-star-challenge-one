@@ -192,7 +192,25 @@
   let timer: ReturnType<typeof setTimeout>;
   let disposed = false;
   let heading = $state<HTMLHeadingElement>();
-  let rows = $derived(job?.records ?? []);
+  let expandedGroups = $state<Set<string>>(new Set());
+  // Records folded into another one by internal/dedupe stay out of the main
+  // list; they only show up nested under their canonical record.
+  let rows = $derived((job?.records ?? []).filter((row) => !row.mergedInto));
+  let mergedByCanonical = $derived(
+    (job?.records ?? []).reduce((map, row) => {
+      if (!row.mergedInto) return map;
+      const group = map.get(row.mergedInto) ?? [];
+      group.push(row);
+      map.set(row.mergedInto, group);
+      return map;
+    }, new Map<string, Business[]>())
+  );
+  function toggleGroup(id: string) {
+    const next = new Set(expandedGroups);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    expandedGroups = next;
+  }
   let attention = $derived(rows.filter(needsReview).length);
   let reviewed = $derived(rows.filter((row) => row.reviewed).length);
   let ceased = $derived(rows.filter(isCeased).length);
@@ -1331,8 +1349,19 @@
                     autoVerified(row).length}{@const pending =
                     pendingSuggestions(row).length}<tr
                     ><td
-                      ><strong>{row.name || t('Unnamed business')}</strong><span
-                        class="row-secondary"
+                      ><div class="name-cell"
+                        >{#if row.mergedFrom?.length}<button
+                            class="group-toggle"
+                            aria-expanded={expandedGroups.has(row.id)}
+                            aria-label={expandedGroups.has(row.id)
+                              ? t('Hide merged records')
+                              : t('Show merged records')}
+                            onclick={() => toggleGroup(row.id)}
+                            ><Icon name="chevron" size={12} /></button
+                          >{/if}<strong
+                          >{row.name || t('Unnamed business')}</strong
+                        ></div
+                      ><span class="row-secondary"
                         >{row.number || t('No identifier')}
                         <span class="dot-divider">·</span>
                         {row.kind === 'establishment'
@@ -1346,6 +1375,13 @@
                           >{t('Category')}: {categories(row.source).join(
                             ' · '
                           )}</span
+                        >{/if}{#if row.mergedFrom?.length}<span
+                          class="badge merged-badge"
+                          >{row.mergedFrom.length === 1
+                            ? t('1 merged')
+                            : t('{count} merged', {
+                                count: number(row.mergedFrom.length)
+                              })}</span
                         >{/if}</td
                     ><td class="address-cell"
                       >{row.address ||
@@ -1398,7 +1434,25 @@
                         >{t('Review')} <Icon name="chevron" size={15} /></button
                       ></td
                     ></tr
-                  >{/each}</tbody
+                  >{#if row.mergedFrom?.length && expandedGroups.has(row.id)}{#each mergedByCanonical.get(row.id) ?? [] as sub}<tr
+                        class="sub-row"
+                        ><td
+                          ><span class="sub-thread" aria-hidden="true"
+                          ></span><strong
+                            >{sub.name || t('Unnamed business')}</strong
+                          ><span class="row-secondary"
+                            >{sub.number || t('No identifier')}</span
+                          ></td
+                        ><td class="address-cell"
+                          >{sub.address || t('No address provided')}</td
+                        ><td
+                          ><span class="row-secondary"
+                            >{t('Merged into {name}', {
+                              name: row.name || t('Unnamed business')
+                            })}</span
+                          ></td
+                        ><td></td><td></td></tr
+                      >{/each}{/if}{/each}</tbody
               >
             </table>
             {#if filtered.length === 0}<div class="empty-state">

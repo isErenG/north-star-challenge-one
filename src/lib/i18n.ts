@@ -338,6 +338,11 @@ const nl: Record<string, string> = {
     'Een e-mailmelding is aangevraagd voor {email}',
   'Email notification: {status}': 'E-mailmelding: {status}',
   'Review {name}': '{name} nakijken',
+  'Show merged records': 'Samengevoegde records tonen',
+  'Hide merged records': 'Samengevoegde records verbergen',
+  '1 merged': '1 samengevoegd',
+  '{count} merged': '{count} samengevoegd',
+  'Merged into {name}': 'Samengevoegd met {name}',
   'CSV row {row} is malformed: check its column count and quotes':
     'CSV-rij {row} is ongeldig: controleer het aantal kolommen en de aanhalingstekens',
   'Google Maps returned {status}; no match confirmed':

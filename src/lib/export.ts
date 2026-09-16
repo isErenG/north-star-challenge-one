@@ -40,11 +40,15 @@ export function csvCell(value: unknown): string {
   return '"' + text.replaceAll('"', '""') + '"';
 }
 export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
+  // Records merged into another row's near-duplicate cluster are dropped
+  // here so the exported file has one row per business; the canonical row
+  // keeps a mergedFrom trail of what was folded into it.
+  const records = job.records.filter((row) => !row.mergedInto);
   const base = {
     schemaVersion: 1,
     sourceFile: job.filename,
     exportedAt: new Date().toISOString(),
-    records: job.records
+    records
   };
   if (format === 'json') return JSON.stringify(base, null, 2);
   if (format === 'geojson')
@@ -52,7 +56,7 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
       {
         type: 'FeatureCollection',
         sourceFile: job.filename,
-        features: job.records.map(({ geometry, ...properties }) => ({
+        features: records.map(({ geometry, ...properties }) => ({
           type: 'Feature',
           geometry: geometry ?? null,
           properties
@@ -62,7 +66,7 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
       2
     );
   const sourceKeys = [
-    ...new Set(job.records.flatMap((row) => Object.keys(row.source)))
+    ...new Set(records.flatMap((row) => Object.keys(row.source)))
   ];
   const fields = [
     'number',
@@ -78,7 +82,8 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
     'notes',
     'reviewed',
     'issues',
-    'geometry'
+    'geometry',
+    'mergedFrom'
   ] as const;
   // Prefix review fields so no input column is overwritten, even with unusual source headers.
   let prefix = 'review_';
@@ -135,11 +140,15 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
     '\ufeff' +
     [
       headers.map(csvCell).join(','),
-      ...job.records.map((row) =>
+      ...records.map((row) =>
         [
           ...sourceKeys.map((key) => row.source[key]),
           ...fields.map((key) =>
-            key === 'issues' ? row.issues.join('; ') : row[key]
+            key === 'issues'
+              ? row.issues.join('; ')
+              : key === 'mergedFrom'
+                ? (row.mergedFrom ?? []).join('; ')
+                : row[key]
           ),
           ...googleValues(row),
           ...verificationValues(row)
