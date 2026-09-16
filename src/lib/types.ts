@@ -26,6 +26,9 @@ export interface Business {
   source: Record<string, unknown>;
   google?: Place;
   googleError?: string;
+  duplicateGroup?: string;
+  mergedInto?: string;
+  mergedFrom?: string[];
 }
 export interface Job {
   id: string;

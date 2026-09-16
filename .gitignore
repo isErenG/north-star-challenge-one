@@ -4,6 +4,7 @@ build/
 web/dist/*
 !web/dist/.gitkeep
 .context/
+.claude/
 .env
 .env.*
 !.env.example

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"kbo-review/internal/dedupe"
 	"kbo-review/internal/google"
 	"kbo-review/internal/model"
 	"kbo-review/internal/notify"
@@ -243,6 +244,7 @@ func (s *Service) process(j *model.Job) {
 	}
 	s.mu.Lock()
 	validate.MarkDuplicates(j.Records)
+	dedupe.Cluster(j.Records)
 	j.Phase = "complete"
 	j.State = model.StateDone
 	if err := s.store.Save(j); err != nil {
