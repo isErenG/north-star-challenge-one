@@ -61,14 +61,6 @@ const nl: Record<string, string> = {
   'Close help': 'Help sluiten',
   Retry: 'Opnieuw proberen',
   'Start again': 'Opnieuw beginnen',
-  'A clearer view of your business data':
-    'Meer overzicht in je bedrijfsgegevens',
-  'Good decisions start': 'Goede beslissingen beginnen',
-  'with organised data.': 'met geordende gegevens.',
-  'Turn your KBO export into a clear, reviewable dataset.':
-    'Maak van je KBO-export een overzichtelijk bestand dat je kunt nakijken.',
-  'Bring your file. We’ll help you put it in order.':
-    'Upload je bestand. Wij helpen je het te ordenen.',
   'Upload a business file': 'Een bestand met bedrijfsgegevens uploaden',
   'Start with your file': 'Begin met je bestand',
   'STEP 01': 'STAP 01',
@@ -100,21 +92,6 @@ const nl: Record<string, string> = {
     'Je oorspronkelijke gegevens blijven behouden',
   'Reading your file': 'Bestand wordt ingelezen',
   'Organise file': 'Bestand ordenen',
-  'What happens next': 'Wat gebeurt er daarna?',
-  'Less sorting.': 'Minder sorteren.',
-  'More clarity.': 'Meer overzicht.',
-  'Bring everything together': 'Alles bij elkaar',
-  'Business names, KBO numbers, addresses and coordinates, neatly organised.':
-    'Bedrijfsnamen, KBO-nummers, adressen en coördinaten, overzichtelijk geordend.',
-  'Know what needs attention': 'Zie wat aandacht nodig heeft',
-  'Spot duplicate identifiers, missing information and records to review.':
-    'Vind dubbele nummers, ontbrekende informatie en records die je moet nakijken.',
-  'Leave with a useful file': 'Verder met een bruikbaar bestand',
-  'Review, make corrections, and download as JSON, CSV or GeoJSON.':
-    'Kijk de gegevens na, pas ze aan en download ze als JSON, CSV of GeoJSON.',
-  'Made for your KBO export.': 'Gemaakt voor je KBO-export.',
-  'Use a file you are authorised to process. No copying from public search pages.':
-    'Gebruik een bestand dat je mag verwerken. Kopieer geen gegevens van openbare zoekpagina’s.',
   'All your columns. All your records.': 'Al je kolommen. Al je records.',
   'Nothing lost along the way.': 'Er gaat niets verloren.',
   'Your file is in good hands': 'Je bestand is in goede handen',
@@ -173,6 +150,24 @@ const nl: Record<string, string> = {
   Reviewed: 'Nagekeken',
   'Missing contact info': 'Contactgegevens ontbreken',
   'Search businesses': 'Bedrijven zoeken',
+  'Search this file': 'Dit bestand doorzoeken',
+  'Find businesses': 'Vind bedrijven',
+  'Industry, name, location or keyword…': 'Sector, naam, locatie of trefwoord…',
+  'Clear search': 'Zoekopdracht wissen',
+  'Filter by industry': 'Filteren op sector',
+  'All industries': 'Alle sectoren',
+  'Filter by category': 'Filteren op categorie',
+  'All categories': 'Alle categorieën',
+  Category: 'Categorie',
+  'No category fields in this file. Add a category column to filter by category.':
+    'Dit bestand bevat geen categorievelden. Voeg een categoriekolom toe om op categorie te filteren.',
+  'Search across this file, including contact details, notes and original fields. Combine keywords to narrow results.':
+    'Doorzoek dit bestand, inclusief contactgegevens, notities en oorspronkelijke velden. Combineer trefwoorden om gerichter te zoeken.',
+  'No industry fields in this file. Other keywords are still searchable.':
+    'Dit bestand bevat geen sectorvelden. Je kunt wel op andere trefwoorden zoeken.',
+  '{count} of {total} records match': '{count} van {total} records gevonden',
+  'Reset search and filters': 'Zoekopdracht en filters wissen',
+
   'Find a name, number or address…': 'Zoek een naam, nummer of adres…',
   'Business / identifier': 'Bedrijf / nummer',
   Address: 'Adres',

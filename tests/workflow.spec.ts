@@ -19,7 +19,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
   await page.goto('/');
   await expect(page.locator('.dropzone')).toBeEnabled();
   await expect(
-    page.getByRole('heading', { name: /Good decisions/ })
+    page.getByRole('heading', { name: 'Start with your file' })
   ).toBeVisible();
   await page.screenshot({
     path: '.context/upload-desktop.png',

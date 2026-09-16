@@ -8,7 +8,7 @@ test('Dutch is server-rendered, the mobile switcher persists, and validation fol
   const response = await request.get('/');
   const html = await response.text();
   expect(html).toContain('lang="nl"');
-  expect(html).toContain('Goede beslissingen beginnen');
+  expect(html).toContain('Begin met je bestand');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('.dropzone')).toBeEnabled();
@@ -24,7 +24,7 @@ test('Dutch is server-rendered, the mobile switcher persists, and validation fol
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.reload();
   await expect(
-    page.getByRole('heading', { name: /Good decisions/ })
+    page.getByRole('heading', { name: 'Start with your file' })
   ).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue(
     'en'
@@ -32,7 +32,7 @@ test('Dutch is server-rendered, the mobile switcher persists, and validation fol
   await page.getByRole('combobox', { name: 'Language' }).selectOption('nl');
   await page.reload();
   await expect(
-    page.getByRole('heading', { name: /Goede beslissingen/ })
+    page.getByRole('heading', { name: 'Begin met je bestand' })
   ).toBeVisible();
   await page.getByRole('button', { name: 'Zo werkt het' }).click();
   await expect(
@@ -190,7 +190,7 @@ test('map view labels follow the language without changing the results', async (
   ).toBeVisible();
   await page.getByRole('button', { name: 'Kaart', exact: true }).click();
   await expect(page.getByLabel('Kleuren van kaartmarkeringen')).toBeVisible();
-  await expect(page.getByRole('status')).toContainText(
+  await expect(page.locator('.map-status')).toContainText(
     'van 3 records hebben coördinaten'
   );
   await page.getByRole('combobox', { name: 'Taal' }).selectOption('en');

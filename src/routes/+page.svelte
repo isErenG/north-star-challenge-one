@@ -68,6 +68,12 @@
   import Icon from '$lib/Icon.svelte';
   import MapView from '$lib/MapView.svelte';
   import { download, exportJob, needsReview } from '$lib/export';
+  import {
+    indexBusiness,
+    matchesSearch,
+    industries,
+    categories
+  } from '$lib/search';
   import type { Job, Business } from '$lib/types';
   let screen = $state<'upload' | 'processing' | 'results'>('upload');
   let config = $state({ google: false, email: false, mapbox: '' });
@@ -81,6 +87,8 @@
   let job = $state<Job | null>(null);
   let query = $state('');
   let filter = $state('all');
+  let industry = $state('');
+  let category = $state('');
   let view = $state<'list' | 'map'>('list');
   let page = $state(0);
   let editor = $state<Business | null>(null);
@@ -95,20 +103,32 @@
   let rows = $derived(job?.records ?? []);
   let attention = $derived(rows.filter(needsReview).length);
   let reviewed = $derived(rows.filter((row) => row.reviewed).length);
+  let searchIndex = $derived(rows.map(indexBusiness));
+  let industryOptions = $derived(
+    [...new Set(searchIndex.flatMap((entry) => entry.industries))].sort(
+      (a, b) => a.localeCompare(b, locale)
+    )
+  );
+  let categoryOptions = $derived(
+    [...new Set(searchIndex.flatMap((entry) => entry.categories))].sort(
+      (a, b) => a.localeCompare(b, locale)
+    )
+  );
   let filtered = $derived(
-    rows.filter((row) => {
-      const matches = [row.name, row.number, row.enterprise, row.address]
-        .join(' ')
-        .toLowerCase()
-        .includes(query.toLowerCase());
-      return (
-        matches &&
-        (filter === 'all' ||
-          (filter === 'review' && needsReview(row)) ||
-          (filter === 'reviewed' && row.reviewed) ||
-          (filter === 'missing' && (!row.phone || !row.email)))
-      );
-    })
+    searchIndex
+      .filter((entry) => {
+        const row = entry.row;
+        return (
+          matchesSearch(entry.text, query) &&
+          (!industry || entry.industries.includes(industry)) &&
+          (!category || entry.categories.includes(category)) &&
+          (filter === 'all' ||
+            (filter === 'review' && needsReview(row)) ||
+            (filter === 'reviewed' && row.reviewed) ||
+            (filter === 'missing' && (!row.phone || !row.email)))
+        );
+      })
+      .map((entry) => entry.row)
   );
   let visible = $derived(filtered.slice(page * 20, (page + 1) * 20));
   let progress = $derived(
@@ -116,6 +136,8 @@
   );
   $effect(() => {
     query;
+    industry;
+    category;
     filter;
     page = 0;
   });
@@ -217,6 +239,8 @@
     job = null;
     error = '';
     query = '';
+    industry = '';
+    category = '';
     filter = 'all';
     view = 'list';
     page = 0;
@@ -379,22 +403,12 @@
       </div>{/if}
 
     {#if screen === 'upload'}
-      <section class="intro">
-        <p class="eyebrow">{t('A clearer view of your business data')}</p>
-        <h1 bind:this={heading} tabindex="-1">
-          {t('Good decisions start')}<br />{t('with organised data.')}
-        </h1>
-        <p class="intro-copy">
-          {t('Turn your KBO export into a clear, reviewable dataset.')}<br
-            class="desktop-break"
-          />
-          {t('Bring your file. We’ll help you put it in order.')}
-        </p>
-      </section>
       <div class="upload-layout">
         <section class="upload-panel" aria-label={t('Upload a business file')}>
           <div class="section-heading">
-            <h2>{t('Start with your file')}</h2>
+            <h2 bind:this={heading} tabindex="-1">
+              {t('Start with your file')}
+            </h2>
             <span class="small-label">{t('STEP 01')}</span>
           </div>
           <input
@@ -523,55 +537,6 @@
             >
           </div>
         </section>
-        <aside class="explanation">
-          <span class="eyebrow">{t('What happens next')}</span>
-          <h2>{t('Less sorting.')} <br />{t('More clarity.')}</h2>
-          <ol class="benefit-list">
-            <li>
-              <span class="benefit-number">01</span>
-              <div>
-                <h3>{t('Bring everything together')}</h3>
-                <p>
-                  {t(
-                    'Business names, KBO numbers, addresses and coordinates, neatly organised.'
-                  )}
-                </p>
-              </div>
-            </li>
-            <li>
-              <span class="benefit-number">02</span>
-              <div>
-                <h3>{t('Know what needs attention')}</h3>
-                <p>
-                  {t(
-                    'Spot duplicate identifiers, missing information and records to review.'
-                  )}
-                </p>
-              </div>
-            </li>
-            <li>
-              <span class="benefit-number">03</span>
-              <div>
-                <h3>{t('Leave with a useful file')}</h3>
-                <p>
-                  {t(
-                    'Review, make corrections, and download as JSON, CSV or GeoJSON.'
-                  )}
-                </p>
-              </div>
-            </li>
-          </ol>
-          <div class="source-note">
-            <Icon name="info" size={18} />
-            <p>
-              {t('Made for your KBO export.')}<br /><span
-                >{t(
-                  'Use a file you are authorised to process. No copying from public search pages.'
-                )}</span
-              >
-            </p>
-          </div>
-        </aside>
       </div>
       <div class="bottom-note">
         <span class="mini-grid" aria-hidden="true">▦</span><span
@@ -763,6 +728,93 @@
         </div>
       </div>
       <section class="records-panel" aria-label={t('Business records')}>
+        <div
+          class="universal-search"
+          role="search"
+          aria-label={t('Search this file')}
+        >
+          <label class="field-label" for="business-search"
+            >{t('Find businesses')}</label
+          >
+          <div class="search-controls">
+            <div class="search-input">
+              <Icon name="search" size={20} />
+              <input
+                id="business-search"
+                type="search"
+                aria-label={t('Search businesses')}
+                aria-describedby="search-help"
+                bind:value={query}
+                placeholder={t('Industry, name, location or keyword…')}
+                onkeydown={(event) => {
+                  if (event.key === 'Escape') query = '';
+                }}
+              />
+              {#if query}<button
+                  class="icon-button"
+                  aria-label={t('Clear search')}
+                  onclick={() => {
+                    query = '';
+                    document.getElementById('business-search')?.focus();
+                  }}><Icon name="close" size={16} /></button
+                >{/if}
+            </div>
+            <select
+              class="select industry-select"
+              aria-label={t('Filter by industry')}
+              bind:value={industry}
+              disabled={!industryOptions.length}
+            >
+              <option value="">{t('All industries')}</option>
+              {#each industryOptions as option}<option value={option}
+                  >{option}</option
+                >{/each}
+            </select>
+            <select
+              class="select category-select"
+              aria-label={t('Filter by category')}
+              bind:value={category}
+              disabled={!categoryOptions.length}
+            >
+              <option value="">{t('All categories')}</option>
+              {#each categoryOptions as option}<option value={option}
+                  >{option}</option
+                >{/each}
+            </select>
+          </div>
+          <p id="search-help">
+            {t(
+              'Search across this file, including contact details, notes and original fields. Combine keywords to narrow results.'
+            )}
+          </p>
+          {#if !industryOptions.length}<p>
+              {t(
+                'No industry fields in this file. Other keywords are still searchable.'
+              )}
+            </p>{/if}
+          {#if !categoryOptions.length}<p>
+              {t(
+                'No category fields in this file. Add a category column to filter by category.'
+              )}
+            </p>{/if}
+          <div class="search-feedback">
+            <span role="status" aria-live="polite"
+              >{t('{count} of {total} records match', {
+                count: number(filtered.length),
+                total: number(rows.length)
+              })}</span
+            >
+            {#if query || industry || category || filter !== 'all'}<button
+                class="review-button"
+                onclick={() => {
+                  query = '';
+                  industry = '';
+                  category = '';
+                  filter = 'all';
+                }}>{t('Reset search and filters')}</button
+              >{/if}
+          </div>
+        </div>
         <div class="records-toolbar">
           <div
             class="filter-tabs"
@@ -789,13 +841,6 @@
             >
           </div>
           <div class="toolbar-right">
-            <label class="search-input"
-              ><Icon name="search" size={17} /><input
-                aria-label={t('Search businesses')}
-                bind:value={query}
-                placeholder={t('Find a name, number or address…')}
-              /></label
-            >
             <div class="view-toggle" role="group" aria-label={t('View as')}>
               <button
                 class:active={view === 'list'}
@@ -842,7 +887,15 @@
                         {row.kind === 'establishment'
                           ? t('Establishment')
                           : t('Enterprise')}</span
-                      ></td
+                      >{#if industries(row.source).length}<span
+                          class="row-secondary industry-label"
+                          >{industries(row.source).join(' · ')}</span
+                        >{/if}{#if categories(row.source).length}<span
+                          class="row-secondary industry-label"
+                          >{t('Category')}: {categories(row.source).join(
+                            ' · '
+                          )}</span
+                        >{/if}</td
                     ><td class="address-cell"
                       >{row.address || t('No address provided')}</td
                     ><td
@@ -886,6 +939,8 @@
                   class="btn btn-outline"
                   onclick={() => {
                     query = '';
+                    industry = '';
+                    category = '';
                     filter = 'all';
                   }}>{t('Show all records')}</button
                 >
