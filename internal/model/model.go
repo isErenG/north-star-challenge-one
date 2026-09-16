@@ -114,6 +114,24 @@ type Place struct {
 	Phone            string `json:"internationalPhoneNumber"`
 	Website          string `json:"websiteUri"`
 	MapsURL          string `json:"googleMapsUri"`
+	// Industry as Google classifies the listing: the primary type's display
+	// name (e.g. "Bakery") plus the raw type identifiers.
+	PrimaryType        string `json:"primaryType,omitempty"`
+	PrimaryTypeDisplay struct {
+		Text string `json:"text"`
+	} `json:"primaryTypeDisplayName"`
+	Types []string `json:"types,omitempty"`
+}
+
+// Industry returns the human-readable Google category, or "".
+func (p *Place) Industry() string {
+	if p == nil {
+		return ""
+	}
+	if p.PrimaryTypeDisplay.Text != "" {
+		return p.PrimaryTypeDisplay.Text
+	}
+	return p.PrimaryType
 }
 
 // Job states.

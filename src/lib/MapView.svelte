@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { translate, translateMessage, type Locale } from '$lib/i18n';
   import type { Map as MapboxMap, Popup, GeoJSONSource } from 'mapbox-gl';
   import 'mapbox-gl/dist/mapbox-gl.css';
   import { needsReview } from '$lib/export';
@@ -8,11 +9,20 @@
 
   let {
     rows,
+    locale,
     token,
     onopen
-  }: { rows: Business[]; token: string; onopen: (row: Business) => void } =
-    $props();
+  }: {
+    locale: Locale;
+    rows: Business[];
+    token: string;
+    onopen: (row: Business) => void;
+  } = $props();
 
+  const t = (text: string, values?: Record<string, string | number>) =>
+    translate(locale, text, values);
+  const number = (value: number) =>
+    value.toLocaleString(locale === 'nl' ? 'nl-BE' : 'en-GB');
   const SOURCE = 'businesses';
   const LAYER = 'business-points';
   const COLOURS = {
@@ -45,8 +55,8 @@
         geometry: { type: 'Point', coordinates: point },
         properties: {
           id: row.id,
-          name: row.name || 'Unnamed business',
-          address: row.address || 'No address provided',
+          name: row.name || t('Unnamed business'),
+          address: row.address || t('No address provided'),
           status: statusOf(row)
         }
       });
@@ -92,7 +102,17 @@
           center: [4.4, 50.85],
           zoom: 7,
           attributionControl: true,
-          cooperativeGestures: true
+          cooperativeGestures: true,
+          locale: {
+            'NavigationControl.ZoomIn': t('Zoom in'),
+            'NavigationControl.ZoomOut': t('Zoom out'),
+            'NavigationControl.ResetBearing': t('Reset bearing to north'),
+            'TouchPanBlocker.Message': t('Use two fingers to move the map'),
+            'ScrollZoomBlocker.CtrlMessage': t(
+              'Use Ctrl + scroll to zoom the map'
+            ),
+            'ScrollZoomBlocker.CmdMessage': t('Use ⌘ + scroll to zoom the map')
+          }
         });
         map.addControl(new mapboxgl.NavigationControl(), 'top-right');
         popup = new mapboxgl.Popup({
@@ -204,33 +224,44 @@
 
 <div class="map-status" role="status">
   <span
-    ><strong>{plotted.features.length.toLocaleString()}</strong> of {rows.length.toLocaleString()}
-    records have coordinates{#if missing > 0}<span class="dot-divider">·</span
-      >{missing.toLocaleString()} without coordinates {missing === 1
-        ? 'is'
-        : 'are'} only shown in the list{/if}</span
-  >
-  <span class="map-legend" aria-label="Marker colours">
-    <i style:background={COLOURS.ceased}></i>Likely ceased
-    <i style:background={COLOURS.review}></i>Needs review
-    <i style:background={COLOURS.reviewed}></i>Reviewed
-    <i style:background={COLOURS.ok}></i>Checks passed
+    >{t('{count} of {total} records have coordinates', {
+      count: number(plotted.features.length),
+      total: number(rows.length)
+    })}
+    {#if missing > 0}<span class="dot-divider">·</span>
+      {t(
+        missing === 1
+          ? '1 without coordinates is only shown in the list'
+          : '{count} without coordinates are only shown in the list',
+        { count: number(missing) }
+      )}
+    {/if}
+  </span>
+  <span class="map-legend" aria-label={t('Marker colours')}>
+    <i style:background={COLOURS.ceased}></i>{t('Likely ceased')}
+    <i style:background={COLOURS.review}></i>{t('Needs review')}
+    <i style:background={COLOURS.reviewed}></i>{t('Reviewed')}
+    <i style:background={COLOURS.ok}></i>{t('Checks passed')}
   </span>
 </div>
 <div class="map-frame">
   <div
     class="map-canvas"
     bind:this={container}
-    aria-label="Map of business locations"
+    aria-label={t('Map of business locations')}
   ></div>
   {#if failed}<div class="map-message" role="alert">
-      <strong>Map unavailable</strong><span>{failed}</span>
+      <strong>{t('Map unavailable')}</strong><span
+        >{translateMessage(locale, failed)}</span
+      >
     </div>{:else if !ready}<div class="map-message">
-      <span class="loading loading-spinner loading-sm"></span>Loading map…
+      <span class="loading loading-spinner loading-sm"></span>{t(
+        'Loading map\u2026'
+      )}
     </div>{/if}
   {#if ready && !plotted.features.length}<div class="map-message">
-      <strong>No records with coordinates in this view</strong><span
-        >Try another filter or search.</span
+      <strong>{t('No records with coordinates in this view')}</strong><span
+        >{t('Try another filter or search.')}</span
       >
     </div>{/if}
 </div>

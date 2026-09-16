@@ -14,7 +14,7 @@ import (
 )
 
 const placesEndpoint = "https://places.googleapis.com/v1/places:searchText"
-const placesFieldMask = "places.id,places.displayName,places.formattedAddress,places.businessStatus,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.types,places.location"
+const placesFieldMask = "places.id,places.displayName,places.formattedAddress,places.businessStatus,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.types,places.primaryType,places.primaryTypeDisplayName,places.location"
 
 // Google runs one Places Text Search per record. Billable.
 type Google struct {
@@ -35,8 +35,7 @@ func (g *Google) CostEUR() float64 { return g.Cost }
 
 type place struct {
 	model.Place
-	NationalPhone string   `json:"nationalPhoneNumber"`
-	Types         []string `json:"types"`
+	NationalPhone string `json:"nationalPhoneNumber"`
 }
 
 type placesResponse struct {
@@ -135,8 +134,11 @@ func (g *Google) interpret(row *Row, res placesResponse) {
 	if sim >= 0.5 && p.DisplayName.Text != "" {
 		row.Findings = append(row.Findings, Finding{Source: src, Field: "name", Value: p.DisplayName.Text, URL: url, Note: note, Confidence: 0.5})
 	}
-	if len(p.Types) > 0 {
-		row.Pages = append(row.Pages, Page{URL: url, Title: "Google Maps listing", Text: "Google place types: " + strings.Join(p.Types, ", ")})
+	if industry := p.Industry(); industry != "" {
+		row.Findings = append(row.Findings, Finding{Source: src, Field: "activity", Value: industry, URL: url, Note: "Google Maps category" + mismatch, Confidence: 0.5 * scale})
+	}
+	if len(p.Types) > 0 || p.Industry() != "" {
+		row.Pages = append(row.Pages, Page{URL: url, Title: "Google Maps listing", Text: "Google primary category: " + p.Industry() + ". Google place types: " + strings.Join(p.Types, ", ")})
 	}
 }
 

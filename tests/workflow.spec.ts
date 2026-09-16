@@ -3,6 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { exportJob, needsReview } from '../src/lib/export';
 import type { Business, Job } from '../src/lib/types';
 
+// Keep the original English workflow covered alongside the Dutch default.
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([
+    { name: 'kbo-language', value: 'en', url: baseURL! }
+  ]);
+});
+
 test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON downloads', async ({
   page
 }) => {
@@ -12,7 +19,7 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
   await page.goto('/');
   await expect(page.locator('.dropzone')).toBeEnabled();
   await expect(
-    page.getByRole('heading', { name: /Good decisions/ })
+    page.getByRole('heading', { name: 'Start with your file' })
   ).toBeVisible();
   await page.screenshot({
     path: '.context/upload-desktop.png',

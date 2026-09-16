@@ -1,3 +1,4 @@
+import { placeIndustry } from './types';
 import type { Business, Job, Suggestion, SuggestionField } from './types';
 export const SUGGESTION_FIELDS: SuggestionField[] = [
   'name',
@@ -87,6 +88,7 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
     'status',
     'phone',
     'website',
+    'industry',
     'maps_url',
     'error'
   ];
@@ -96,6 +98,7 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
     row.google?.businessStatus,
     row.google?.internationalPhoneNumber,
     row.google?.websiteUri,
+    placeIndustry(row.google),
     row.google?.googleMapsUri,
     row.googleError
   ];

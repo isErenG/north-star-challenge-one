@@ -6,6 +6,14 @@ export interface Place {
   internationalPhoneNumber: string;
   websiteUri: string;
   googleMapsUri: string;
+  primaryType?: string;
+  primaryTypeDisplayName?: { text: string };
+  types?: string[];
+}
+
+/** Human-readable Google category for a candidate, or ''. */
+export function placeIndustry(place?: Place): string {
+  return place?.primaryTypeDisplayName?.text || place?.primaryType || '';
 }
 export interface Evidence {
   source: string;

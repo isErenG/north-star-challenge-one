@@ -25,7 +25,7 @@ func TestGoogleSignalsAndFindings(t *testing.T) {
 		if r.Header.Get("X-Goog-Api-Key") != "key" || !strings.Contains(r.Header.Get("X-Goog-FieldMask"), "places.types") {
 			t.Error("bad headers")
 		}
-		return respond(200, `{"places":[{"id":"p1","displayName":{"text":"Bakkerij Janssens"},"formattedAddress":"Zilverstraat 53, 2900 Schoten, Belgium","businessStatus":"CLOSED_PERMANENTLY","nationalPhoneNumber":"03 658 12 34","websiteUri":"https://janssens.be","googleMapsUri":"https://maps.google.com/?cid=1","types":["bakery","store"]}]}`), nil
+		return respond(200, `{"places":[{"id":"p1","displayName":{"text":"Bakkerij Janssens"},"formattedAddress":"Zilverstraat 53, 2900 Schoten, Belgium","businessStatus":"CLOSED_PERMANENTLY","nationalPhoneNumber":"03 658 12 34","websiteUri":"https://janssens.be","googleMapsUri":"https://maps.google.com/?cid=1","types":["bakery","store"],"primaryType":"bakery","primaryTypeDisplayName":{"text":"Bakery","languageCode":"en"}}]}`), nil
 	})}
 	row := &Row{Record: model.Record{Name: "Bakkerij Janssens BV", Address: "Zilverstraat 53, 2900 Schoten"}}
 	if err := g.Run(context.Background(), row); err != nil {
@@ -34,14 +34,14 @@ func TestGoogleSignalsAndFindings(t *testing.T) {
 	if s := signal(row, Closed); s == nil || s.Weight < 0.9 {
 		t.Fatalf("closed signal: %+v", row.Signals)
 	}
-	if row.Place == nil || row.Place.BusinessStatus != "CLOSED_PERMANENTLY" {
-		t.Fatal("place not kept for the existing UI")
+	if row.Place == nil || row.Place.BusinessStatus != "CLOSED_PERMANENTLY" || row.Place.Industry() != "Bakery" || len(row.Place.Types) != 2 {
+		t.Fatalf("place with industry not kept: %+v", row.Place)
 	}
 	fields := map[string]string{}
 	for _, f := range row.Findings {
 		fields[f.Field] = f.Value
 	}
-	if fields["phone"] != "03 658 12 34" || fields["website"] != "https://janssens.be" || fields["address"] != "Zilverstraat 53, 2900 Schoten" {
+	if fields["phone"] != "03 658 12 34" || fields["website"] != "https://janssens.be" || fields["address"] != "Zilverstraat 53, 2900 Schoten" || fields["activity"] != "Bakery" {
 		t.Fatalf("findings: %+v", fields)
 	}
 	if len(row.Pages) != 1 || !strings.Contains(row.Pages[0].Text, "bakery") {
