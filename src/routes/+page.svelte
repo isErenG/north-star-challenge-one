@@ -7,7 +7,7 @@
     const handle = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         const button = node.querySelector<HTMLButtonElement>(
-          '[aria-label="Close record"]'
+          '[data-close-record]'
         );
         button?.click();
       }
@@ -43,6 +43,28 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
+  import {
+    localeCookie,
+    translate,
+    translateMessage,
+    resolveLocale,
+    type Locale
+  } from '$lib/i18n';
+  let locale = $state<Locale>('nl');
+  const numberFormat = $derived(
+    new Intl.NumberFormat(locale === 'nl' ? 'nl-BE' : 'en-GB')
+  );
+  const t = (message: string, values?: Record<string, string | number>) =>
+    translate(locale, message, values);
+  const message = (value: string) => translateMessage(locale, value);
+  const number = (value: number) => numberFormat.format(value);
+  function changeLanguage(value: string) {
+    locale = resolveLocale(value);
+    document.cookie = `${localeCookie}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+  }
+  $effect(() => {
+    document.documentElement.lang = locale;
+  });
   import Icon from '$lib/Icon.svelte';
   import MapView from '$lib/MapView.svelte';
   import { download, exportJob, needsReview } from '$lib/export';
@@ -105,6 +127,12 @@
     return data;
   }
   onMount(() => {
+    locale = resolveLocale(
+      document.cookie
+        .split('; ')
+        .find((value) => value.startsWith(localeCookie + '='))
+        ?.split('=')[1]
+    );
     hydrated = true;
     api('config')
       .then((data) => (config = data))
@@ -259,37 +287,46 @@
 </script>
 
 <svelte:head
-  ><title>KBO Review — Business data, in order</title><meta
+  ><title>{t('KBO Review — Business data, in order')}</title><meta
     name="description"
-    content="Organise KBO business records, review data quality and export a clear, editable dataset."
+    content={t(
+      'Organise KBO business records, review data quality and export a clear, editable dataset.'
+    )}
   /><meta name="referrer" content="no-referrer" /></svelte:head
 >
 
 <div class="app-shell">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="KBO Review home"
+    <a class="brand" href="/" aria-label={t('KBO Review home')}
       ><span class="brand-mark">k<span>↗</span></span><span
         >KBO <strong>Review</strong></span
       ></a
     >
     <div class="header-right">
       <span class="workspace-label"
-        ><span class="status-dot"></span> Business data workspace</span
+        ><span class="status-dot"></span> {t('Business data workspace')}</span
       ><button class="help-button" onclick={() => (showGuide = !showGuide)}
-        ><Icon name="info" size={17} /> How it works</button
-      ><span class="language-label">EN</span>
+        ><Icon name="info" size={17} /> {t('How it works')}</button
+      ><select
+        class="language-switcher"
+        aria-label={t('Language')}
+        value={locale}
+        onchange={(event) => changeLanguage(event.currentTarget.value)}
+      >
+        <option value="nl">NL</option><option value="en">EN</option>
+      </select>
     </div>
   </header>
   <div class="context-bar">
-    <span>Crossroads Bank for Enterprises</span><span class="context-separator"
-      >/</span
-    ><span>Data review</span><span class="prototype-label"
-      >Independent workspace</span
+    <span>{t('Crossroads Bank for Enterprises')}</span><span
+      class="context-separator">/</span
+    ><span>{t('Data review')}</span><span class="prototype-label"
+      >{t('Independent workspace')}</span
     >
   </div>
   <main class:wide={screen === 'results'}>
-    <nav class="steps-nav" aria-label="File review progress">
-      {#each ['Upload your file', 'Check & organise', 'Review & export'] as label, i}
+    <nav class="steps-nav" aria-label={t('File review progress')}>
+      {#each [t('Upload your file'), t('Check & organise'), t('Review & export')] as label, i}
         {@const active =
           screen === 'upload' ? 0 : screen === 'processing' ? 1 : 2}
         <div
@@ -309,54 +346,56 @@
     {#if showGuide}
       <aside class="guide">
         <div>
-          <strong>From one export to a usable dataset</strong>
+          <strong>{t('From one export to a usable dataset')}</strong>
           <p>
-            Upload an authorised KBO export. We organise its columns and flag
-            missing data, duplicate identifiers and status checks. Review any
-            corrections, then download your full dataset. Original source fields
-            stay with every record.
+            {t(
+              'Upload an authorised KBO export. We organise its columns and flag missing data, duplicate identifiers and status checks. Review any corrections, then download your full dataset. Original source fields stay with every record.'
+            )}
           </p>
           <p>
-            Google Maps lookups are optional suggestions. They do not verify
-            legal registration or provide email addresses.
+            {t(
+              'Google Maps lookups are optional suggestions. They do not verify legal registration or provide email addresses.'
+            )}
           </p>
         </div>
         <button
           class="icon-button"
-          aria-label="Close help"
+          aria-label={t('Close help')}
           onclick={() => (showGuide = false)}><Icon name="close" /></button
         >
       </aside>
     {/if}
     {#if error}<div class="error-message" role="alert">
-        <Icon name="info" /><span>{error}</span
+        <Icon name="info" /><span>{message(error)}</span
         >{#if screen === 'processing'}<button
             class="btn btn-sm"
             onclick={() => {
               error = '';
               const id = new URL(location.href).searchParams.get('job');
               if (id) poll(id);
-            }}>Retry</button
-          ><button class="btn btn-sm" onclick={reset}>Start again</button>{/if}
+            }}>{t('Retry')}</button
+          ><button class="btn btn-sm" onclick={reset}>{t('Start again')}</button
+          >{/if}
       </div>{/if}
 
     {#if screen === 'upload'}
       <section class="intro">
-        <p class="eyebrow">A clearer view of your business data</p>
+        <p class="eyebrow">{t('A clearer view of your business data')}</p>
         <h1 bind:this={heading} tabindex="-1">
-          Good decisions start<br />with organised data.
+          {t('Good decisions start')}<br />{t('with organised data.')}
         </h1>
         <p class="intro-copy">
-          Turn your KBO export into a clear, reviewable dataset.<br
+          {t('Turn your KBO export into a clear, reviewable dataset.')}<br
             class="desktop-break"
-          /> Bring your file. We’ll help you put it in order.
+          />
+          {t('Bring your file. We’ll help you put it in order.')}
         </p>
       </section>
       <div class="upload-layout">
-        <section class="upload-panel" aria-label="Upload a business file">
+        <section class="upload-panel" aria-label={t('Upload a business file')}>
           <div class="section-heading">
-            <h2>Start with your file</h2>
-            <span class="small-label">STEP 01</span>
+            <h2>{t('Start with your file')}</h2>
+            <span class="small-label">{t('STEP 01')}</span>
           </div>
           <input
             bind:this={fileInput}
@@ -365,7 +404,7 @@
             accept=".csv,.json,.geojson"
             class="sr-only"
             tabindex="-1"
-            aria-label="Upload file"
+            aria-label={t('Upload file')}
             onchange={(e) => choose(e.currentTarget.files?.[0] ?? null)}
           />
           <button
@@ -401,20 +440,26 @@
               ></span
             >
             {#if file}<strong class="filename">{file.name}</strong><span
-                >{(file.size / 1024).toFixed(1)} KB
-                <span class="dot-divider">·</span> Ready to organise</span
-              ><span class="browse-link">Choose a different file</span
-              >{:else}<strong>Drop your business data here</strong><span
-                >or <span class="browse-link">browse files</span> on your computer</span
+                >{(file.size / 1024).toLocaleString(
+                  locale === 'nl' ? 'nl-BE' : 'en-GB',
+                  { minimumFractionDigits: 1, maximumFractionDigits: 1 }
+                )} KB
+                <span class="dot-divider">·</span>
+                {t('Ready to organise')}</span
+              ><span class="browse-link">{t('Choose a different file')}</span
+              >{:else}<strong>{t('Drop your business data here')}</strong><span
+                >{t('or')} <span class="browse-link">{t('browse files')}</span>
+                {t('on your computer')}</span
               ><span class="file-types"
                 >CSV <i></i> JSON <i></i> GeoJSON
-                <span class="file-limit">Up to 10 MB</span></span
+                <span class="file-limit">{t('Up to 10 MB')}</span></span
               >{/if}
           </button>
           <div class="example-row">
-            <span>Want to see how it works?</span><a
+            <span>{t('Want to see how it works?')}</span><a
               href="/example.csv"
-              download><Icon name="download" size={15} /> Download an example</a
+              download
+              ><Icon name="download" size={15} /> {t('Download an example')}</a
             >
           </div>
           <div class="connection-option">
@@ -425,38 +470,45 @@
                 bind:checked={enrich}
                 disabled={!config.google}
               /><span
-                ><strong>Compare with Google Maps</strong><span
-                  >Look for address, phone and business-status suggestions.</span
+                ><strong>{t('Compare with Google Maps')}</strong><span
+                  >{t(
+                    'Look for address, phone and business-status suggestions.'
+                  )}</span
                 ></span
               ></label
             ><span
               class="badge connection-badge"
               class:connected={config.google}
-              >{config.google ? 'Connected' : 'Not connected'}</span
+              >{config.google ? t('Connected') : t('Not connected')}</span
             >
           </div>
           <details class="notification-details">
             <summary
-              ><Icon name="mail" size={17} /> Get an email when it’s ready
-              <span>Optional</span></summary
-            ><label class="field-label" for="upload-email">Email address</label
+              ><Icon name="mail" size={17} />
+              {t('Get an email when it’s ready')}
+              <span>{t('Optional')}</span></summary
+            ><label class="field-label" for="upload-email"
+              >{t('Email address')}</label
             ><input
               id="upload-email"
               type="email"
               class="input"
               bind:value={email}
               disabled={!config.email}
-              placeholder="you@municipality.be"
+              placeholder={t('you@municipality.be')}
             />
             <p>
               {config.email
-                ? 'We’ll send one completion notice for this task.'
-                : 'Email notifications are available once a mail service is connected.'}
+                ? t('We’ll send one completion notice for this task.')
+                : t(
+                    'Email notifications are available once a mail service is connected.'
+                  )}
             </p>
           </details>
           <div class="upload-actions">
             <span
-              ><Icon name="shield" size={16} /> Your original data stays intact</span
+              ><Icon name="shield" size={16} />
+              {t('Your original data stays intact')}</span
             ><button
               class="btn btn-primary"
               disabled={!file ||
@@ -464,7 +516,7 @@
                 Boolean(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))}
               onclick={start}
               >{#if busy}<span class="loading loading-spinner loading-xs"
-                ></span>Reading your file{:else}Organise file<Icon
+                ></span>{t('Reading your file')}{:else}{t('Organise file')}<Icon
                   name="arrow"
                   size={17}
                 />{/if}</button
@@ -472,36 +524,39 @@
           </div>
         </section>
         <aside class="explanation">
-          <span class="eyebrow">What happens next</span>
-          <h2>Less sorting. <br />More clarity.</h2>
+          <span class="eyebrow">{t('What happens next')}</span>
+          <h2>{t('Less sorting.')} <br />{t('More clarity.')}</h2>
           <ol class="benefit-list">
             <li>
               <span class="benefit-number">01</span>
               <div>
-                <h3>Bring everything together</h3>
+                <h3>{t('Bring everything together')}</h3>
                 <p>
-                  Business names, KBO numbers, addresses and coordinates, neatly
-                  organised.
+                  {t(
+                    'Business names, KBO numbers, addresses and coordinates, neatly organised.'
+                  )}
                 </p>
               </div>
             </li>
             <li>
               <span class="benefit-number">02</span>
               <div>
-                <h3>Know what needs attention</h3>
+                <h3>{t('Know what needs attention')}</h3>
                 <p>
-                  Spot duplicate identifiers, missing information and records to
-                  review.
+                  {t(
+                    'Spot duplicate identifiers, missing information and records to review.'
+                  )}
                 </p>
               </div>
             </li>
             <li>
               <span class="benefit-number">03</span>
               <div>
-                <h3>Leave with a useful file</h3>
+                <h3>{t('Leave with a useful file')}</h3>
                 <p>
-                  Review, make corrections, and download as JSON, CSV or
-                  GeoJSON.
+                  {t(
+                    'Review, make corrections, and download as JSON, CSV or GeoJSON.'
+                  )}
                 </p>
               </div>
             </li>
@@ -509,9 +564,10 @@
           <div class="source-note">
             <Icon name="info" size={18} />
             <p>
-              Made for your KBO export.<br /><span
-                >Use a file you are authorised to process. No copying from
-                public search pages.</span
+              {t('Made for your KBO export.')}<br /><span
+                >{t(
+                  'Use a file you are authorised to process. No copying from public search pages.'
+                )}</span
               >
             </p>
           </div>
@@ -519,18 +575,20 @@
       </div>
       <div class="bottom-note">
         <span class="mini-grid" aria-hidden="true">▦</span><span
-          >All your columns. All your records. <strong
-            >Nothing lost along the way.</strong
-          ></span
+          >{t('All your columns. All your records.')}
+          <strong>{t('Nothing lost along the way.')}</strong></span
         >
       </div>
     {:else if screen === 'processing'}
       <section class="intro processing-intro">
-        <p class="eyebrow">Your file is in good hands</p>
-        <h1 bind:this={heading} tabindex="-1">Putting the details in order.</h1>
+        <p class="eyebrow">{t('Your file is in good hands')}</p>
+        <h1 bind:this={heading} tabindex="-1">
+          {t('Putting the details in order.')}
+        </h1>
         <p class="intro-copy">
-          We’re checking the data in your file. Any uncertainty will be marked
-          for review.
+          {t(
+            'We’re checking the data in your file. Any uncertainty will be marked for review.'
+          )}
         </p>
       </section>
       <section class="processing-panel">
@@ -538,10 +596,12 @@
           <span class="file-icon"><Icon name="file" size={25} /></span>
           <div>
             <strong
-              >{job?.filename ?? file?.name ?? 'Opening your task…'}</strong
+              >{job?.filename ?? file?.name ?? t('Opening your task…')}</strong
             >
             <p>
-              {job ? job.total.toLocaleString() + ' records' : 'Reading file'}
+              {job
+                ? t('{count} records', { count: number(job.total) })
+                : t('Reading file')}
             </p>
           </div>
           <span class="loading loading-spinner"></span>
@@ -549,19 +609,21 @@
         <div class="progress-label">
           <span
             >{job?.phase === 'google'
-              ? 'Comparing Google Maps candidates'
-              : 'Checking records'}</span
+              ? t('Comparing Google Maps candidates')
+              : t('Checking records')}</span
           ><strong>{progress}%</strong>
         </div>
         <progress
           class="progress progress-primary"
           value={progress}
           max="100"
-          aria-label="Records processed"
+          aria-label={t('Records processed')}
         ></progress>
         <p class="progress-count">
-          {job?.progress.toLocaleString() ?? 0} of {job?.total.toLocaleString() ??
-            '—'} records processed
+          {t('{done} of {total} records processed', {
+            done: number(job?.progress ?? 0),
+            total: job ? number(job.total) : '—'
+          })}
         </p>
         <div class="validation-layers">
           <div>
@@ -569,57 +631,63 @@
               ><Icon name="check" size={16} /></span
             >
             <div>
-              <strong>Read & organise</strong>
-              <p>Identify columns and preserve source data</p>
+              <strong>{t('Read & organise')}</strong>
+              <p>{t('Identify columns and preserve source data')}</p>
             </div>
-            <span>Complete</span>
+            <span>{t('Complete')}</span>
           </div>
           <div>
             <span class="layer-status"><Icon name="layers" size={16} /></span>
             <div>
-              <strong>Check data quality</strong>
-              <p>Identifiers, duplicate records and missing fields</p>
+              <strong>{t('Check data quality')}</strong>
+              <p>{t('Identifiers, duplicate records and missing fields')}</p>
             </div>
-            <span>In progress</span>
+            <span>{t('In progress')}</span>
           </div>
           <div>
             <span class="layer-status muted"><Icon name="pin" size={16} /></span
             >
             <div>
-              <strong>Compare business information</strong>
+              <strong>{t('Compare business information')}</strong>
               <p>
                 {job?.enrich
-                  ? 'Google Maps candidates are suggestions to review'
-                  : 'Google Maps comparison was not requested'}
+                  ? t('Google Maps candidates are suggestions to review')
+                  : t('Google Maps comparison was not requested')}
               </p>
             </div>
-            <span>{job?.enrich ? 'Queued' : 'Skipped'}</span>
+            <span>{job?.enrich ? t('Queued') : t('Skipped')}</span>
           </div>
         </div>
         <div class="email-callout">
           <Icon name="mail" size={24} />
           <div>
-            <h3>No need to keep watching.</h3>
+            <h3>{t('No need to keep watching.')}</h3>
             <p>
               {job?.email
-                ? 'A completion notice is requested for ' + job.email
+                ? t('A completion notice is requested for {email}', {
+                    email: job.email
+                  })
                 : config.email
-                  ? 'Leave your email and we’ll let you know when it’s ready.'
-                  : 'This task keeps running if you close the tab. Bookmark this page to return.'}
+                  ? t(
+                      'Leave your email and we’ll let you know when it’s ready.'
+                    )
+                  : t(
+                      'This task keeps running if you close the tab. Bookmark this page to return.'
+                    )}
             </p>
             {#if config.email && !job?.email}<form onsubmit={saveEmail}>
                 <input
                   class="input"
                   type="email"
                   required
-                  placeholder="you@municipality.be"
-                  aria-label="Notification email"
+                  placeholder={t('you@municipality.be')}
+                  aria-label={t('Notification email')}
                   bind:value={email}
                 /><button class="btn btn-primary" disabled={saving}
-                  >Notify me</button
+                  >{t('Notify me')}</button
                 >
               </form>{/if}{#if notificationMessage}<p role="status">
-                {notificationMessage}
+                {message(notificationMessage)}
               </p>{/if}
           </div>
         </div>
@@ -627,150 +695,184 @@
     {:else if job}
       <section class="results-heading">
         <div>
-          <p class="eyebrow"><Icon name="check" size={15} /> File organised</p>
-          <h1 bind:this={heading} tabindex="-1">Ready for a closer look.</h1>
+          <p class="eyebrow">
+            <Icon name="check" size={15} />
+            {t('File organised')}
+          </p>
+          <h1 bind:this={heading} tabindex="-1">
+            {t('Ready for a closer look.')}
+          </h1>
           <p class="intro-copy">
             {job.filename} <span class="dot-divider">·</span>
-            {job.total.toLocaleString()} records, original data preserved
+            {number(job.total)}
+            {t('records, original data preserved')}
           </p>
         </div>
         <button class="btn btn-outline new-file" onclick={reset}
-          ><Icon name="upload" size={16} /> Upload another file</button
+          ><Icon name="upload" size={16} /> {t('Upload another file')}</button
         >
       </section>
       <div class="result-summary">
         <div class="summary-text">
           <span class="success-icon"><Icon name="check" size={19} /></span>
           <p>
-            <strong>Your file is organised.</strong>
+            <strong>{t('Your file is organised.')}</strong>{' '}
             {attention > 0
-              ? `${attention} records need a closer look.`
-              : 'No unresolved checks remain.'}<span
+              ? t(
+                  attention === 1
+                    ? '1 record needs a closer look.'
+                    : '{count} records need a closer look.',
+                  {
+                    count: number(attention)
+                  }
+                )
+              : t('No unresolved checks remain.')}<span
               >{job.enrich
-                ? 'Google Maps candidates require a human check.'
-                : 'Source data checked. Google Maps comparison was not run.'}</span
+                ? t('Google Maps candidates require a human check.')
+                : t(
+                    'Source data checked. Google Maps comparison was not run.'
+                  )}</span
             >
           </p>
         </div>
         <div class="export-controls">
           <button class="btn btn-primary" onclick={() => exportFile('json')}
-            ><Icon name="download" size={17} /> Download JSON</button
+            ><Icon name="download" size={17} /> {t('Download JSON')}</button
           >
           <details class="dropdown dropdown-end">
-            <summary class="btn btn-outline" aria-label="Other download formats"
-              ><span>Other formats</span><span class="down-chevron">⌄</span
+            <summary
+              class="btn btn-outline"
+              aria-label={t('Other download formats')}
+              ><span>{t('Other formats')}</span><span class="down-chevron"
+                >⌄</span
               ></summary
             >
             <ul class="menu dropdown-content">
               <li>
-                <button onclick={() => exportFile('csv')}>Download CSV</button>
+                <button onclick={() => exportFile('csv')}
+                  >{t('Download CSV')}</button
+                >
               </li>
               <li>
                 <button onclick={() => exportFile('geojson')}
-                  >Download GeoJSON</button
+                  >{t('Download GeoJSON')}</button
                 >
               </li>
             </ul>
           </details>
         </div>
       </div>
-      <section class="records-panel" aria-label="Business records">
+      <section class="records-panel" aria-label={t('Business records')}>
         <div class="records-toolbar">
-          <div class="filter-tabs" role="group" aria-label="Filter records">
+          <div
+            class="filter-tabs"
+            role="group"
+            aria-label={t('Filter records')}
+          >
             <button
               class:active={filter === 'all'}
               onclick={() => (filter = 'all')}
-              >All records <span>{rows.length}</span></button
+              >{t('All records')} <span>{number(rows.length)}</span></button
             ><button
               class:active={filter === 'review'}
               onclick={() => (filter = 'review')}
-              >Needs review <span class="amber-count">{attention}</span></button
+              >{t('Needs review')}
+              <span class="amber-count">{number(attention)}</span></button
             ><button
               class:active={filter === 'reviewed'}
               onclick={() => (filter = 'reviewed')}
-              >Reviewed <span>{reviewed}</span></button
+              >{t('Reviewed')} <span>{number(reviewed)}</span></button
             ><button
               class:active={filter === 'missing'}
-              onclick={() => (filter = 'missing')}>Missing contact info</button
+              onclick={() => (filter = 'missing')}
+              >{t('Missing contact info')}</button
             >
           </div>
           <div class="toolbar-right">
             <label class="search-input"
               ><Icon name="search" size={17} /><input
-                aria-label="Search businesses"
+                aria-label={t('Search businesses')}
                 bind:value={query}
-                placeholder="Find a name, number or address…"
+                placeholder={t('Find a name, number or address…')}
               /></label
             >
-            <div class="view-toggle" role="group" aria-label="View as">
+            <div class="view-toggle" role="group" aria-label={t('View as')}>
               <button
                 class:active={view === 'list'}
                 aria-pressed={view === 'list'}
                 onclick={() => (view = 'list')}
-                ><Icon name="layers" size={14} /> List</button
+                ><Icon name="layers" size={14} /> {t('List')}</button
               ><button
                 class:active={view === 'map'}
                 aria-pressed={view === 'map'}
                 disabled={!config.mapbox}
                 title={config.mapbox
-                  ? 'Show records on a map'
-                  : 'Set MAPBOX_ACCESS_TOKEN to enable the map view'}
+                  ? t('Show records on a map')
+                  : t('Set MAPBOX_ACCESS_TOKEN to enable the map view')}
                 onclick={() => (view = 'map')}
-                ><Icon name="pin" size={14} /> Map</button
+                ><Icon name="pin" size={14} /> {t('Map')}</button
               >
             </div>
           </div>
         </div>
         {#if view === 'map' && config.mapbox}
-          <MapView rows={filtered} token={config.mapbox} onopen={openEditor} />
+          {#key locale}<MapView
+              {locale}
+              rows={filtered}
+              token={config.mapbox}
+              onopen={openEditor}
+            />{/key}
         {:else}
           <div class="table-scroll">
             <table class="table">
               <thead
                 ><tr
-                  ><th>Business / identifier</th><th>Address</th><th
-                    >Source status</th
-                  ><th>Review</th><th><span class="sr-only">Actions</span></th
+                  ><th>{t('Business / identifier')}</th><th>{t('Address')}</th
+                  ><th>{t('Source status')}</th><th>{t('Review')}</th><th
+                    ><span class="sr-only">{t('Actions')}</span></th
                   ></tr
                 ></thead
               ><tbody
                 >{#each visible as row}<tr
                     ><td
-                      ><strong>{row.name || 'Unnamed business'}</strong><span
+                      ><strong>{row.name || t('Unnamed business')}</strong><span
                         class="row-secondary"
-                        >{row.number || 'No identifier'}
+                        >{row.number || t('No identifier')}
                         <span class="dot-divider">·</span>
                         {row.kind === 'establishment'
-                          ? 'Establishment'
-                          : 'Enterprise'}</span
+                          ? t('Establishment')
+                          : t('Enterprise')}</span
                       ></td
                     ><td class="address-cell"
-                      >{row.address || 'No address provided'}</td
+                      >{row.address || t('No address provided')}</td
                     ><td
                       ><span class="source-status"
-                        >{row.status || 'Not provided'}</span
+                        >{row.status || t('Not provided')}</span
                       ></td
                     ><td
                       >{#if row.reviewed}<span class="badge reviewed-badge"
-                          ><Icon name="check" size={12} />Reviewed</span
+                          ><Icon name="check" size={12} />{t('Reviewed')}</span
                         >{:else if needsReview(row)}<span
-                          class="badge attention-badge">Needs review</span
+                          class="badge attention-badge"
+                          >{t('Needs review')}</span
                         >{:else}<span class="badge neutral-badge"
-                          >Checks passed</span
+                          >{t('Checks passed')}</span
                         >{/if}<span class="row-secondary"
-                        >{row.issues[0] ||
+                        >{message(row.issues[0] ?? '') ||
                           (row.google
-                            ? 'Google Maps candidate'
+                            ? t('Google Maps candidate')
                             : row.googleError
-                              ? 'Google Maps unavailable'
-                              : 'Source checks only')}</span
+                              ? t('Google Maps unavailable')
+                              : t('Source checks only'))}</span
                       ></td
                     ><td
                       ><button
                         class="review-button"
                         onclick={() => openEditor(row)}
-                        aria-label={'Review ' + row.name}
-                        >Review <Icon name="chevron" size={15} /></button
+                        aria-label={t('Review {name}', {
+                          name: row.name || t('Unnamed business')
+                        })}
+                        >{t('Review')} <Icon name="chevron" size={15} /></button
                       ></td
                     ></tr
                   >{/each}</tbody
@@ -778,34 +880,38 @@
             </table>
             {#if filtered.length === 0}<div class="empty-state">
                 <Icon name="search" size={26} />
-                <h3>No records match this view</h3>
-                <p>Try another search or return to all records.</p>
+                <h3>{t('No records match this view')}</h3>
+                <p>{t('Try another search or return to all records.')}</p>
                 <button
                   class="btn btn-outline"
                   onclick={() => {
                     query = '';
                     filter = 'all';
-                  }}>Show all records</button
+                  }}>{t('Show all records')}</button
                 >
               </div>{/if}
           </div>
           <div class="pagination">
             <span
               >{filtered.length
-                ? `${page * 20 + 1}–${Math.min((page + 1) * 20, filtered.length)} of ${filtered.length} records`
-                : '0 records'}</span
+                ? t('{start}–{end} of {count} records', {
+                    start: number(page * 20 + 1),
+                    end: number(Math.min((page + 1) * 20, filtered.length)),
+                    count: number(filtered.length)
+                  })
+                : t('0 records')}</span
             >
             <div>
               <button
                 class="btn btn-sm btn-ghost"
                 disabled={page === 0}
                 onclick={() => page--}
-                ><Icon name="back" size={15} />Previous</button
+                ><Icon name="back" size={15} />{t('Previous')}</button
               ><button
                 class="btn btn-sm btn-ghost"
                 disabled={(page + 1) * 20 >= filtered.length}
                 onclick={() => page++}
-                >Next<Icon name="arrow" size={15} /></button
+                >{t('Next')}<Icon name="arrow" size={15} /></button
               >
             </div>
           </div>
@@ -813,13 +919,15 @@
       </section>
       <div class="results-footnote">
         <p>
-          <Icon name="shield" size={16} /> Corrections are saved separately. Every
-          download includes original source fields.
+          <Icon name="shield" size={16} />
+          {t(
+            'Corrections are saved separately. Every download includes original source fields.'
+          )}
         </p>
         <span
           >{job.email
-            ? 'Email notification: ' + job.notification
-            : 'No completion email requested'}</span
+            ? t('Email notification: {status}', { status: t(job.notification) })
+            : t('No completion email requested')}</span
         >
       </div>
       {#if config.email && !job.email}<form
@@ -827,27 +935,27 @@
           onsubmit={saveEmail}
         >
           <Icon name="mail" size={20} /><label for="result-email"
-            >Email me a completion notice</label
+            >{t('Email me a completion notice')}</label
           ><input
             id="result-email"
             class="input"
             type="email"
             required
-            placeholder="you@municipality.be"
+            placeholder={t('you@municipality.be')}
             bind:value={email}
           /><button class="btn btn-outline" disabled={saving}
-            >Send notice</button
+            >{t('Send notice')}</button
           >
         </form>{/if}
     {/if}
   </main>
   <footer>
     <span class="footer-brand"
-      >KBO Review <span>Business data, in order.</span></span
+      >KBO Review <span>{t('Business data, in order.')}</span></span
     >
     <div>
-      <span class="belgian-mark" aria-hidden="true"><i></i><i></i><i></i></span> Built
-      for local public services
+      <span class="belgian-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      {t('Built for local public services')}
     </div>
   </footer>
 </div>
@@ -871,107 +979,120 @@
     <div class="editor-header">
       <div>
         <p class="eyebrow">
-          Record {editor.id} <span class="dot-divider">/</span>
-          {editor.kind}
+          {t('Record')}
+          {editor.id} <span class="dot-divider">/</span>
+          {t(editor.kind)}
         </p>
-        <h2 id="editor-title">Review business details</h2>
+        <h2 id="editor-title">{t('Review business details')}</h2>
       </div>
       <button
         class="icon-button"
         disabled={saving}
         onclick={() => (editor = null)}
-        aria-label="Close record"><Icon name="close" /></button
+        data-close-record
+        aria-label={t('Close record')}><Icon name="close" /></button
       >
     </div>
     <form onsubmit={saveEdit} class="editor-form">
       <p class="editor-number">
         {editor.number}
         {#if editor.enterprise && editor.enterprise !== editor.number}<span
-            >Parent enterprise: {editor.enterprise}</span
+            >{t('Parent enterprise:')} {editor.enterprise}</span
           >{/if}
       </p>
       {#if editor.issues.length}<div class="review-issues">
-          <strong>Check before using this record</strong>
+          <strong>{t('Check before using this record')}</strong>
           <ul>
-            {#each editor.issues as issue}<li>{issue}</li>{/each}
+            {#each editor.issues as issue}<li>{message(issue)}</li>{/each}
           </ul>
         </div>{/if}
       <label class="field-label"
-        >Business name<input class="input" bind:value={editor.name} /></label
+        >{t('Business name')}<input
+          class="input"
+          bind:value={editor.name}
+        /></label
       ><label class="field-label"
-        >Address<input class="input" bind:value={editor.address} /></label
+        >{t('Address')}<input
+          class="input"
+          bind:value={editor.address}
+        /></label
       >
       <div class="two-fields">
         <label class="field-label"
-          >Phone<input
+          >{t('Phone')}<input
             class="input"
             type="tel"
             bind:value={editor.phone}
-            placeholder="Not provided"
+            placeholder={t('Not provided')}
           /></label
         ><label class="field-label"
-          >Email<input
+          >{t('Email')}<input
             class="input"
             type="email"
             bind:value={editor.email}
-            placeholder="Not provided"
+            placeholder={t('Not provided')}
           /></label
         >
       </div>
       <label class="field-label"
-        >Website<input
+        >{t('Website')}<input
           class="input"
           bind:value={editor.website}
-          placeholder="Not provided"
+          placeholder={t('Not provided')}
         /></label
       >
       <div class="registered-status">
-        <span>Registered status in source</span><strong
-          >{editor.status || 'Not provided'}</strong
+        <span>{t('Registered status in source')}</span><strong
+          >{editor.status || t('Not provided')}</strong
         >
-        <p>This is the uploaded value, not a live KBO verification.</p>
+        <p>{t('This is the uploaded value, not a live KBO verification.')}</p>
       </div>
       {#if editor.google}<div class="google-candidate">
-          <p class="eyebrow">Google Maps · Unconfirmed candidate</p>
+          <p class="eyebrow">{t('Google Maps · Unconfirmed candidate')}</p>
           <h3>{editor.google.displayName.text}</h3>
           <p>{editor.google.formattedAddress}</p>
           <dl>
-            <dt>Business status</dt>
-            <dd>{editor.google.businessStatus || 'Not provided'}</dd>
-            <dt>Phone</dt>
-            <dd>{editor.google.internationalPhoneNumber || 'Not provided'}</dd>
-            <dt>Website</dt>
-            <dd>{editor.google.websiteUri || 'Not provided'}</dd>
+            <dt>{t('Business status')}</dt>
+            <dd>{editor.google.businessStatus || t('Not provided')}</dd>
+            <dt>{t('Phone')}</dt>
+            <dd>
+              {editor.google.internationalPhoneNumber || t('Not provided')}
+            </dd>
+            <dt>{t('Website')}</dt>
+            <dd>{editor.google.websiteUri || t('Not provided')}</dd>
           </dl>
           <p>
-            Confirm this is the same establishment before making any
-            corrections. Google closure status is not legal registration status.
+            {t(
+              'Confirm this is the same establishment before making any corrections. Google closure status is not legal registration status.'
+            )}
           </p>
           {#if editor.google.googleMapsUri.startsWith('https://')}<a
               href={editor.google.googleMapsUri}
               target="_blank"
               rel="noreferrer"
-              >Open in Google Maps <Icon name="external" size={14} /></a
+              >{t('Open in Google Maps')} <Icon name="external" size={14} /></a
             >{/if}
         </div>{:else if editor.googleError}<div class="review-issues">
-          {editor.googleError}. No external information was confirmed.
+          {message(editor.googleError)}{t(
+            '. No external information was confirmed.'
+          )}
         </div>{/if}
       <label class="field-label"
-        >Review notes<textarea
+        >{t('Review notes')}<textarea
           class="textarea"
           rows="3"
           bind:value={editor.notes}
-          placeholder="Record your source or explain a correction…"
+          placeholder={t('Record your source or explain a correction…')}
         ></textarea></label
       ><label class="review-checkbox"
         ><input
           class="checkbox checkbox-sm"
           type="checkbox"
           bind:checked={editor.reviewed}
-        /><span>I have reviewed this record</span></label
+        /><span>{t('I have reviewed this record')}</span></label
       >
       <details class="source-details">
-        <summary>View original source fields</summary>
+        <summary>{t('View original source fields')}</summary>
         <dl>
           {#each Object.entries(editor.source) as [key, value]}<dt>{key}</dt>
             <dd>
@@ -982,16 +1103,16 @@
         </dl>
       </details>
       {#if editorError}<p class="error-message" role="alert">
-          {editorError}
+          {message(editorError)}
         </p>{/if}
       <div class="editor-actions">
         <button
           class="btn btn-outline"
           type="button"
           disabled={saving}
-          onclick={() => (editor = null)}>Cancel</button
+          onclick={() => (editor = null)}>{t('Cancel')}</button
         ><button class="btn btn-primary" disabled={saving}
-          >{saving ? 'Saving…' : 'Save changes'}<Icon
+          >{saving ? t('Saving…') : t('Save changes')}<Icon
             name="check"
             size={17}
           /></button

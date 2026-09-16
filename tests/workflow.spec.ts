@@ -3,6 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { exportJob } from '../src/lib/export';
 import type { Job } from '../src/lib/types';
 
+// Keep the original English workflow covered alongside the Dutch default.
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([
+    { name: 'kbo-language', value: 'en', url: baseURL! }
+  ]);
+});
+
 test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON downloads', async ({
   page
 }) => {

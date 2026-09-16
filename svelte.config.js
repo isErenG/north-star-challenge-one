@@ -6,7 +6,7 @@ export default {
     adapter: adapter({
       pages: 'web/dist',
       assets: 'web/dist',
-      fallback: 'index.html',
+      fallback: '200.html',
       precompress: true,
       strict: true
     })
