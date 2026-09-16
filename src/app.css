@@ -2417,3 +2417,9 @@ footer > div {
     min-width: 0;
   }
 }
+.companyweb-demo-preview {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  overflow-wrap: anywhere;
+}

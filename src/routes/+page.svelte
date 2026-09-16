@@ -97,7 +97,8 @@
     { key: 'databe', label: 'data.be', preset: true },
     { key: 'goldenpages', label: 'Golden Pages', preset: false },
     { key: 'trendstop', label: 'Trendstop', preset: false },
-    { key: 'vkbo', label: 'Registry re-check', preset: false }
+    { key: 'vkbo', label: 'Registry re-check', preset: false },
+    { key: 'companyweb_demo', label: 'Companyweb · Demo', preset: false }
   ] as const;
   const VERDICTS: Record<string, string> = {
     likely_active: 'Likely active',
@@ -117,6 +118,7 @@
     { key: 'vkbo', label: 'Registry' },
     { key: 'judge', label: 'AI verdict' },
     { key: 'extract', label: 'AI extraction' },
+    { key: 'companyweb_demo', label: 'Companyweb · Demo' },
     { key: 'reconcile', label: 'Reconcile' }
   ];
   const STAGE_LABELS = Object.fromEntries(
@@ -128,7 +130,8 @@
     databe: 'databe',
     goldenpages: 'goldenpages',
     trendstop: 'trendstop',
-    vkbo: 'vkbo'
+    vkbo: 'vkbo',
+    companyweb_demo: 'companyweb_demo'
   };
   const VERDICT_BADGE: Record<string, string> = {
     likely_active: 'reviewed-badge',
@@ -831,6 +834,16 @@
                     >
                   {/each}
                 </div>
+                {#if selectedSources.companyweb_demo}
+                  <p>
+                    {t(
+                      'Prepared Coja example only; no live Companyweb connection.'
+                    )}
+                    <a href="/companyweb-demo.csv" download
+                      >{t('Download demo file')}</a
+                    >
+                  </p>
+                {/if}
                 <details class="advanced-details">
                   <summary>{t('Advanced')}</summary>
                   <label class="field-label budget-field" for="upload-budget"
@@ -1588,7 +1601,55 @@
                     <span class="trail-stage"
                       >{t(STAGE_LABELS[step.stage] ?? step.stage)}</span
                     >
-                    <span class="trail-note">{message(step.note)}</span>
+                    <span class="trail-note"
+                      >{message(step.note)}
+                      {#if step.demo}
+                        <span class="companyweb-demo-preview">
+                          <strong
+                            >{t('Prepared snapshot: {date}', {
+                              date: step.demo.capturedAt
+                            })} · {step.demo.enterprise}</strong
+                          >
+                          <span
+                            >{t('Company: {name}', {
+                              name: step.demo.name
+                            })}</span
+                          >
+                          <span
+                            >{t('Registered address: {address}', {
+                              address: step.demo.address
+                            })}</span
+                          >
+                          <span
+                            >{t('Status in snapshot: {status}', {
+                              status: step.demo.status
+                            })}</span
+                          >
+                          <span
+                            >{t(
+                              'Uploaded record: {name} · {address} · {status}',
+                              {
+                                name: editor.name,
+                                address: editor.address,
+                                status: editor.status
+                              }
+                            )}</span
+                          >
+                          {#if editor.kind === 'establishment'}<span
+                              >{t(
+                                'This snapshot describes the parent enterprise, not this establishment.'
+                              )}</span
+                            >{/if}
+                          <a
+                            href={step.demo.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            >{t('View Companyweb page')}
+                            <Icon name="external" size={12} /></a
+                          >
+                        </span>
+                      {/if}
+                    </span>
                     <span class="trail-meta"
                       >{#if step.findings > 0}<span
                           >{t('{count} found', {

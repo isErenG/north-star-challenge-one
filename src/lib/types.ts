@@ -41,11 +41,20 @@ export type Stage =
   | 'goldenpages'
   | 'trendstop'
   | 'vkbo'
+  | 'companyweb_demo'
   | 'judge'
   | 'extract'
   | 'reconcile';
 export type StepStatus = 'running' | 'done' | 'skipped' | 'failed';
 export interface Step {
+  demo?: {
+    url: string;
+    capturedAt: string;
+    enterprise: string;
+    name: string;
+    address: string;
+    status: string;
+  };
   stage: Stage;
   status: StepStatus;
   note: string;

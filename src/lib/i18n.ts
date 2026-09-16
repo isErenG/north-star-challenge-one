@@ -4,6 +4,23 @@ export function resolveLocale(value: string | undefined): Locale {
   return value === 'en' ? 'en' : 'nl';
 }
 const nl: Record<string, string> = {
+  'Companyweb · Demo': 'Companyweb · Demo',
+  'Prepared Coja example only; no live Companyweb connection.':
+    'Alleen een voorbereid Coja-voorbeeld; geen live Companyweb-verbinding.',
+  'Download demo file': 'Demobestand downloaden',
+  'Prepared snapshot: {date}': 'Voorbereide momentopname: {date}',
+  'Company: {name}': 'Onderneming: {name}',
+  'Registered address: {address}': 'Maatschappelijke zetel: {address}',
+  'Status in snapshot: {status}': 'Status in momentopname: {status}',
+  'Uploaded record: {name} · {address} · {status}':
+    'Geüpload record: {name} · {address} · {status}',
+  'This snapshot describes the parent enterprise, not this establishment.':
+    'Deze momentopname beschrijft de bovenliggende onderneming, niet deze vestiging.',
+  'View Companyweb page': 'Companyweb-pagina bekijken',
+  'Demo only: no prepared Companyweb snapshot for this enterprise. No live request made.':
+    'Alleen demo: geen voorbereide Companyweb-momentopname voor deze onderneming. Geen live verzoek uitgevoerd.',
+  'Demo snapshot only. No live Companyweb request; no effect on confidence, verdict or saved business fields. Companyweb also uses KBO data.':
+    'Alleen een demo-momentopname. Geen live Companyweb-verzoek; geen invloed op betrouwbaarheid, oordeel of opgeslagen bedrijfsvelden. Companyweb gebruikt ook KBO-gegevens.',
   'View as': 'Weergave',
   List: 'Lijst',
   Map: 'Kaart',

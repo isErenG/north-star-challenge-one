@@ -16,7 +16,7 @@ import (
 var DefaultSources = []string{"google", "website", "openai"}
 
 // AllSources lists every source key the API understands, in run order.
-var AllSources = []string{"google", "website", "databe", "goldenpages", "trendstop", "vkbo", "openai"}
+var AllSources = []string{"google", "website", "databe", "goldenpages", "trendstop", "vkbo", "openai", "companyweb_demo"}
 
 // Pipeline runs sources in order and judges the result.
 type Pipeline struct {
@@ -52,6 +52,10 @@ func NewWith(judge Judge, sources ...Source) *Pipeline {
 func (p *Pipeline) Available() map[string]bool {
 	out := map[string]bool{}
 	for _, key := range AllSources {
+		if key == "companyweb_demo" {
+			out[key] = true // local, explicitly selected fixture; no credentials or network
+			continue
+		}
 		if key == "openai" {
 			out[key] = p.judge != nil && p.judge.Ready()
 			continue
@@ -261,6 +265,9 @@ func (p *Pipeline) Run(ctx context.Context, rec model.Record, opts Options, budg
 		}
 	} else if over {
 		ver.Reason = strings.TrimSuffix(ver.Reason, ".") + ". Budget reached; later steps were skipped."
+	}
+	if slices.Contains(opts.Sources, "companyweb_demo") {
+		companywebDemo(rec, tr)
 	}
 	ri := tr.start("reconcile")
 	suggestions := reconcile(rec, row.Findings)

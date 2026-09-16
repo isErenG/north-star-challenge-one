@@ -73,13 +73,24 @@ const (
 // Step is one stage of a record's verification, kept so reviewers can see
 // what ran, what it found and what it cost.
 type Step struct {
-	Stage     string  `json:"stage"` // checks | google | website | databe | goldenpages | trendstop | vkbo | judge | extract | reconcile
-	Status    string  `json:"status"`
-	Note      string  `json:"note"`
-	Cost      float64 `json:"cost"`
-	Findings  int     `json:"findings"`
-	StartedAt string  `json:"startedAt"`
-	EndedAt   string  `json:"endedAt,omitempty"`
+	Demo      *CompanywebDemo `json:"demo,omitempty"` // isolated fixture, never verification evidence
+	Stage     string          `json:"stage"`          // checks | google | website | databe | goldenpages | trendstop | vkbo | judge | extract | reconcile
+	Status    string          `json:"status"`
+	Note      string          `json:"note"`
+	Cost      float64         `json:"cost"`
+	Findings  int             `json:"findings"`
+	StartedAt string          `json:"startedAt"`
+	EndedAt   string          `json:"endedAt,omitempty"`
+}
+
+// CompanywebDemo is a prepared snapshot for a hackathon, not an API response.
+type CompanywebDemo struct {
+	URL        string `json:"url"`
+	CapturedAt string `json:"capturedAt"`
+	Enterprise string `json:"enterprise"`
+	Name       string `json:"name"`
+	Address    string `json:"address"`
+	Status     string `json:"status"`
 }
 
 // Verification is the real-world existence check for one record.
