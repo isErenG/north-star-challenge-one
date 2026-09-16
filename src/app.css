@@ -147,10 +147,19 @@ h1:focus {
 .help-button:hover {
   color: #163d29;
 }
-.language-label {
-  border-left: 1px solid #e3e6e0;
-  padding-left: 23px;
+.language-switcher {
+  border: 1px solid #d7ded5;
+  border-radius: 6px;
+  background: #fff;
+  color: #163d29;
+  padding: 7px 8px;
+  font: inherit;
   font-weight: 600;
+  cursor: pointer;
+}
+.language-switcher:focus-visible {
+  outline: 2px solid #163d29;
+  outline-offset: 3px;
 }
 .context-bar {
   padding: 15px 5%;
@@ -195,6 +204,7 @@ main.wide {
   font-weight: 500;
 }
 .step-number {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1401,12 +1411,11 @@ footer > div {
   .brand-mark span {
     font-size: 20px;
   }
-  .workspace-label,
-  .language-label {
+  .workspace-label {
     display: none;
   }
   .header-right {
-    gap: 0;
+    gap: 12px;
   }
   .help-button {
     font-size: 11px;
@@ -1429,6 +1438,9 @@ footer > div {
     margin: 27px 0 33px;
   }
   .step-item {
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
     gap: 6px;
     font-size: 10px;
   }
@@ -1437,6 +1449,7 @@ footer > div {
     height: 22px;
   }
   .step-line {
+    flex: 0 0 8px;
     min-width: 8px;
   }
   .intro {

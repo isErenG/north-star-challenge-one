@@ -3,6 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { exportJob } from '../src/lib/export';
 import type { Job } from '../src/lib/types';
 
+// Keep the original English workflow covered alongside the Dutch default.
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([
+    { name: 'kbo-language', value: 'en', url: baseURL! }
+  ]);
+});
+
 test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON downloads', async ({
   page
 }) => {
@@ -98,13 +105,11 @@ test('mobile drag and drop, invalid files, and JSON / GeoJSON inputs', async ({
       () => document.documentElement.scrollWidth <= innerWidth
     )
   ).toBe(true);
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'bad.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from('name,name\none,two')
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'bad.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('name,name\none,two')
+  });
   await page
     .getByRole('button', { name: 'Organise file', exact: true })
     .click();
