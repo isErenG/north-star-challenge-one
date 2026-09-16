@@ -15,7 +15,12 @@
 
   const SOURCE = 'businesses';
   const LAYER = 'business-points';
-  const COLOURS = { reviewed: '#4b7435', review: '#b7852f', ok: '#7c917a' };
+  const COLOURS = {
+    ceased: '#8a4a3a',
+    reviewed: '#4b7435',
+    review: '#b7852f',
+    ok: '#7c917a'
+  };
 
   let container = $state<HTMLDivElement>();
   let map: MapboxMap | undefined;
@@ -24,6 +29,7 @@
   let failed = $state('');
 
   function statusOf(row: Business): keyof typeof COLOURS {
+    if (row.verification?.verdict === 'likely_ceased') return 'ceased';
     if (row.reviewed) return 'reviewed';
     if (needsReview(row)) return 'review';
     return 'ok';
@@ -123,6 +129,8 @@
               'circle-color': [
                 'match',
                 ['get', 'status'],
+                'ceased',
+                COLOURS.ceased,
                 'reviewed',
                 COLOURS.reviewed,
                 'review',
@@ -203,6 +211,7 @@
         : 'are'} only shown in the list{/if}</span
   >
   <span class="map-legend" aria-label="Marker colours">
+    <i style:background={COLOURS.ceased}></i>Likely ceased
     <i style:background={COLOURS.review}></i>Needs review
     <i style:background={COLOURS.reviewed}></i>Reviewed
     <i style:background={COLOURS.ok}></i>Checks passed

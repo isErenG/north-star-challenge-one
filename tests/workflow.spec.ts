@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { exportJob } from '../src/lib/export';
-import type { Job } from '../src/lib/types';
+import { exportJob, needsReview } from '../src/lib/export';
+import type { Business, Job } from '../src/lib/types';
 
 test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON downloads', async ({
   page
@@ -197,4 +197,92 @@ test('CSV export neutralises formulas and retains conflicting original column na
   expect(csv).toContain("'=HYPERLINK");
   expect(csv).toContain('"review_name"');
   expect(csv).toContain('"_review_name"');
+  const verified = {
+    source: { name: 'Plain' },
+    name: 'Plain',
+    number: '0123456749',
+    issues: [],
+    geometry: null,
+    verification: {
+      verdict: 'likely_ceased',
+      reason: 'Website reports a permanent closure.',
+      sources: ['website'],
+      cost: 0,
+      checkedAt: '2026-09-16T00:00:00Z'
+    },
+    suggestions: [
+      {
+        field: 'phone',
+        current: '',
+        value: '+32 3 000 00 00',
+        kind: 'new',
+        confidence: 0.7,
+        evidence: [{ source: 'website', url: 'https://example.be/contact' }]
+      }
+    ]
+  };
+  const verifiedCsv = exportJob(
+    { filename: 'x.csv', records: [verified] } as unknown as Job,
+    'csv'
+  );
+  const [headerLine, rowLine] = verifiedCsv.replace('\ufeff', '').split('\r\n');
+  const headers = headerLine.split(',');
+  const cells = rowLine.split(',');
+  expect(cells[headers.indexOf('"review_verdict"')]).toBe('"likely_ceased"');
+  // The leading "+" is formula-neutralised with an apostrophe, like any other cell.
+  expect(cells[headers.indexOf('"review_suggested_phone"')]).toContain(
+    '+32 3 000 00 00'
+  );
+  expect(headers).toContain('"review_verdict_reason"');
+  expect(cells[headers.indexOf('"review_auto_verified"')]).toBe('""');
+  // A pending "new" suggestion needs a decision.
+  expect(needsReview(verified as unknown as Business)).toBe(true);
+
+  const autoVerified = {
+    source: { name: 'Auto' },
+    name: 'Auto',
+    number: '0123456749',
+    issues: [],
+    geometry: null,
+    reviewed: false,
+    verification: {
+      verdict: 'likely_active',
+      reason: 'Website and directory agree.',
+      sources: ['website'],
+      cost: 0,
+      checkedAt: '2026-09-16T00:00:00Z'
+    },
+    suggestions: [
+      {
+        field: 'phone',
+        current: '',
+        value: '+32 3 000 00 00',
+        kind: 'new',
+        confidence: 0.95,
+        evidence: [{ source: 'website' }],
+        accepted: true,
+        auto: true
+      },
+      {
+        field: 'name',
+        current: 'Auto',
+        value: 'Auto',
+        kind: 'confirmed',
+        confidence: 0.9,
+        evidence: [{ source: 'website' }]
+      }
+    ]
+  };
+  // Auto-accepted values are already applied, so nothing is left to decide.
+  expect(needsReview(autoVerified as unknown as Business)).toBe(false);
+  const autoCsv = exportJob(
+    { filename: 'x.csv', records: [autoVerified] } as unknown as Job,
+    'csv'
+  );
+  const [autoHeaderLine, autoRowLine] = autoCsv.replace('﻿', '').split('\r\n');
+  const autoHeaders = autoHeaderLine.split(',');
+  const autoCells = autoRowLine.split(',');
+  expect(autoCells[autoHeaders.indexOf('"review_auto_verified"')]).toContain(
+    'phone'
+  );
 });

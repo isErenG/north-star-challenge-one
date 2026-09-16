@@ -45,10 +45,97 @@
   import { onMount } from 'svelte';
   import Icon from '$lib/Icon.svelte';
   import MapView from '$lib/MapView.svelte';
-  import { download, exportJob, needsReview } from '$lib/export';
-  import type { Job, Business } from '$lib/types';
+  import {
+    autoVerified,
+    download,
+    exportJob,
+    needsReview,
+    pendingSuggestions
+  } from '$lib/export';
+  import type {
+    Job,
+    Business,
+    Suggestion,
+    SuggestionField,
+    Stage,
+    Step
+  } from '$lib/types';
+  const SOURCES = [
+    { key: 'google', label: 'Google Maps', preset: true },
+    { key: 'website', label: 'Business website', preset: true },
+    { key: 'openai', label: 'AI reconciliation', preset: true },
+    { key: 'databe', label: 'data.be', preset: true },
+    { key: 'goldenpages', label: 'Golden Pages', preset: false },
+    { key: 'trendstop', label: 'Trendstop', preset: false },
+    { key: 'vkbo', label: 'Registry re-check', preset: false }
+  ] as const;
+  const VERDICTS: Record<string, string> = {
+    likely_active: 'Likely active',
+    likely_ceased: 'Likely ceased',
+    unclear: 'Unclear',
+    skipped: 'Skipped',
+    not_run: 'Queued',
+    running: 'Verifying…'
+  };
+  const STAGES: { key: Stage; label: string }[] = [
+    { key: 'checks', label: 'Data checks' },
+    { key: 'google', label: 'Google Maps' },
+    { key: 'website', label: 'Website' },
+    { key: 'databe', label: 'data.be' },
+    { key: 'goldenpages', label: 'Golden Pages' },
+    { key: 'trendstop', label: 'Trendstop' },
+    { key: 'vkbo', label: 'Registry' },
+    { key: 'judge', label: 'AI verdict' },
+    { key: 'extract', label: 'AI extraction' },
+    { key: 'reconcile', label: 'Reconcile' }
+  ];
+  const STAGE_LABELS = Object.fromEntries(
+    STAGES.map((stage) => [stage.key, stage.label])
+  ) as Record<string, string>;
+  const SOURCE_STAGES: Record<string, Stage> = {
+    google: 'google',
+    website: 'website',
+    databe: 'databe',
+    goldenpages: 'goldenpages',
+    trendstop: 'trendstop',
+    vkbo: 'vkbo'
+  };
+  const VERDICT_BADGE: Record<string, string> = {
+    likely_active: 'reviewed-badge',
+    likely_ceased: 'ceased-badge',
+    unclear: 'attention-badge',
+    skipped: 'neutral-badge',
+    not_run: 'neutral-badge',
+    running: 'running-badge'
+  };
+  const BOARD_LIMIT = 40;
+  const FIELD_LABELS: Record<SuggestionField, string> = {
+    name: 'Name',
+    address: 'Address',
+    phone: 'Phone',
+    email: 'Email',
+    website: 'Website',
+    activity: 'Activity',
+    status: 'Status'
+  };
   let screen = $state<'upload' | 'processing' | 'results'>('upload');
-  let config = $state({ google: false, email: false, mapbox: '' });
+  let config = $state<{
+    google: boolean;
+    email: boolean;
+    mapbox: string;
+    sources: Record<string, boolean>;
+    defaultBudgetEur: number;
+  }>({
+    google: false,
+    email: false,
+    mapbox: '',
+    sources: {},
+    defaultBudgetEur: 5
+  });
+  let selectedSources = $state<Record<string, boolean>>({});
+  let budget = $state(5);
+  let verifying = $state(false);
+  let accepting = $state('');
   let file = $state<File | null>(null);
   let dragover = $state(false);
   let hydrated = $state(false);
@@ -73,6 +160,15 @@
   let rows = $derived(job?.records ?? []);
   let attention = $derived(rows.filter(needsReview).length);
   let reviewed = $derived(rows.filter((row) => row.reviewed).length);
+  let ceased = $derived(rows.filter(isCeased).length);
+  let anySourceReady = $derived(
+    SOURCES.some((source) => config.sources[source.key])
+  );
+  let queued = $derived(rows.some(isQueued));
+  let editorQueued = $derived(Boolean(editor && isQueued(editor)));
+  let editorPending = $derived(
+    editor ? (editor.suggestions ?? []).filter(acceptable) : []
+  );
   let filtered = $derived(
     rows.filter((row) => {
       const matches = [row.name, row.number, row.enterprise, row.address]
@@ -84,6 +180,7 @@
         (filter === 'all' ||
           (filter === 'review' && needsReview(row)) ||
           (filter === 'reviewed' && row.reviewed) ||
+          (filter === 'ceased' && isCeased(row)) ||
           (filter === 'missing' && (!row.phone || !row.email)))
       );
     })
@@ -92,11 +189,128 @@
   let progress = $derived(
     job ? Math.round((job.progress / job.total) * 100) : 0
   );
+  let tallies = $derived.by(() => {
+    const counts = {
+      likely_active: 0,
+      likely_ceased: 0,
+      unclear: 0,
+      skipped: 0,
+      running: 0,
+      waiting: 0
+    };
+    for (const row of rows) {
+      const verdict = row.verification?.verdict;
+      if (!verdict || verdict === 'not_run') counts.waiting++;
+      else if (verdict in counts) counts[verdict as keyof typeof counts]++;
+    }
+    return counts;
+  });
+  let jobStages = $derived.by(() => {
+    const wanted = new Set<Stage>(['checks']);
+    for (const source of job?.enrichment?.sources ?? []) {
+      const stage = SOURCE_STAGES[source];
+      if (stage) wanted.add(stage);
+    }
+    for (const row of rows)
+      for (const step of row.verification?.trace ?? []) wanted.add(step.stage);
+    wanted.add('judge');
+    wanted.add('extract');
+    wanted.add('reconcile');
+    return STAGES.filter((stage) => wanted.has(stage.key));
+  });
+  let board = $derived(
+    rows
+      .map((row, index) => ({ row, index, rank: boardRank(row) }))
+      .sort((a, b) => a.rank - b.rank || a.index - b.index)
+      .slice(0, BOARD_LIMIT)
+  );
   $effect(() => {
     query;
     filter;
     page = 0;
   });
+  function isCeased(row: Business) {
+    return row.verification?.verdict === 'likely_ceased';
+  }
+  function isQueued(row: Business) {
+    return (
+      row.verification?.verdict === 'running' ||
+      (row.verification?.verdict === 'not_run' &&
+        row.verification.reason === 'queued')
+    );
+  }
+  function boardRank(row: Business) {
+    const verdict = row.verification?.verdict;
+    if (verdict === 'running') return 0;
+    if (!verdict || verdict === 'not_run') return 1;
+    return 2;
+  }
+  function stageStep(row: Business, stage: Stage): Step | undefined {
+    return row.verification?.trace?.findLast((step) => step.stage === stage);
+  }
+  function chipState(row: Business, stage: Stage) {
+    const step = stageStep(row, stage);
+    if (step) return step.status;
+    return boardRank(row) === 2 ? 'idle' : 'waiting';
+  }
+  function chipTitle(row: Business, stage: Stage) {
+    const step = stageStep(row, stage);
+    const label = STAGE_LABELS[stage];
+    return step ? label + ': ' + (step.note || step.status) : label;
+  }
+  function duration(step: Step) {
+    if (!step.endedAt) return '';
+    const ms = Date.parse(step.endedAt) - Date.parse(step.startedAt);
+    if (!Number.isFinite(ms) || ms < 0) return '';
+    return ms < 1000 ? ms + ' ms' : (ms / 1000).toFixed(1) + ' s';
+  }
+  function sourceLabel(key: string) {
+    return SOURCES.find((source) => source.key === key)?.label ?? key;
+  }
+  function isAuto(row: Business, field: SuggestionField) {
+    return Boolean(
+      row.suggestions?.some((s) => s.field === field && s.auto && s.accepted)
+    );
+  }
+  function rowVerdict(row: Business): { label: string; badge: string } {
+    if (isQueued(row)) return { label: 'Verifying…', badge: 'running-badge' };
+    const verdict = row.verification?.verdict;
+    if (verdict === 'likely_active')
+      return { label: 'Likely active', badge: 'reviewed-badge' };
+    if (verdict === 'likely_ceased')
+      return { label: 'Likely ceased', badge: 'ceased-badge' };
+    if (verdict === 'unclear')
+      return { label: 'Unclear', badge: 'attention-badge' };
+    return { label: 'Not verified', badge: 'neutral-badge' };
+  }
+  function acceptable(suggestion: Suggestion) {
+    return (
+      !suggestion.accepted &&
+      (suggestion.kind === 'new' || suggestion.kind === 'different') &&
+      suggestion.field !== 'status' &&
+      suggestion.field !== 'activity'
+    );
+  }
+  function patch(body: unknown): Promise<Job> {
+    if (!job) return Promise.reject(new Error('No task is open.'));
+    return api('jobs/' + job.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+  function syncEditor(data: Job, fields: SuggestionField[] = []) {
+    if (!editor) return;
+    const record = data.records.find((row) => row.id === editor?.id);
+    if (!record) return;
+    editor.verification = record.verification;
+    editor.suggestions = record.suggestions;
+    for (const field of fields) {
+      if (field === 'activity') continue;
+      editor[field] = record[field];
+    }
+    if (fields.length) editor.notes = record.notes;
+  }
   async function api(path: string, options?: RequestInit) {
     const response = await fetch('/api/' + path, options);
     const data = await response.json();
@@ -107,7 +321,19 @@
   onMount(() => {
     hydrated = true;
     api('config')
-      .then((data) => (config = data))
+      .then((data) => {
+        config = {
+          ...data,
+          sources: data.sources ?? {},
+          defaultBudgetEur: data.defaultBudgetEur ?? 5
+        };
+        budget = config.defaultBudgetEur;
+        const chosen: Record<string, boolean> = {};
+        for (const source of SOURCES)
+          chosen[source.key] =
+            source.preset && Boolean(config.sources[source.key]);
+        selectedSources = chosen;
+      })
       .catch(
         () =>
           (error =
@@ -149,6 +375,18 @@
       form.append('file', file);
       form.append('email', email);
       form.append('enrich', String(enrich));
+      if (enrich) {
+        form.append('budget', String(budget));
+        form.append(
+          'sources',
+          SOURCES.filter(
+            (source) =>
+              selectedSources[source.key] && config.sources[source.key]
+          )
+            .map((source) => source.key)
+            .join(',')
+        );
+      }
       const data = await api('jobs', { method: 'POST', body: form });
       history.replaceState(null, '', '?job=' + data.id);
       screen = 'processing';
@@ -165,10 +403,14 @@
       const data: Job = await api('jobs/' + id);
       if (disposed) return;
       job = data;
+      syncEditor(data);
       if (data.state === 'done') {
         screen = 'results';
         error = '';
-        if (['pending', 'sending'].includes(data.notification))
+        if (
+          ['pending', 'sending'].includes(data.notification) ||
+          data.records.some(isQueued)
+        )
           timer = setTimeout(() => poll(id), 1500);
         return;
       }
@@ -256,6 +498,73 @@
     editor = structuredClone($state.snapshot(row));
     editorError = '';
   }
+  async function acceptSuggestion(suggestion: Suggestion) {
+    if (!job || !editor || accepting) return;
+    accepting = suggestion.field;
+    editorError = '';
+    try {
+      const data = await patch({
+        accept: { id: editor.id, field: suggestion.field }
+      });
+      job = data;
+      syncEditor(data, [suggestion.field]);
+    } catch (e) {
+      editorError = (e as Error).message;
+    } finally {
+      accepting = '';
+    }
+  }
+  async function acceptAllPending() {
+    if (!job || !editor || accepting) return;
+    editorError = '';
+    try {
+      for (const suggestion of editorPending) {
+        if (!editor) break;
+        accepting = suggestion.field;
+        const data = await patch({
+          accept: { id: editor.id, field: suggestion.field }
+        });
+        job = data;
+        syncEditor(data, [suggestion.field]);
+      }
+    } catch (e) {
+      editorError = (e as Error).message;
+    } finally {
+      accepting = '';
+    }
+  }
+  async function undoSuggestion(suggestion: Suggestion) {
+    if (!job || !editor || accepting) return;
+    accepting = suggestion.field;
+    editorError = '';
+    try {
+      const data = await patch({
+        undo: { id: editor.id, field: suggestion.field }
+      });
+      job = data;
+      syncEditor(data, [suggestion.field]);
+    } catch (e) {
+      editorError = (e as Error).message;
+    } finally {
+      accepting = '';
+    }
+  }
+  async function verifyBusiness() {
+    if (!job || !editor || verifying || editorQueued) return;
+    verifying = true;
+    editorError = '';
+    try {
+      const data = await patch({ verify: { id: editor.id } });
+      job = data;
+      syncEditor(data);
+      clearTimeout(timer);
+      timer = setTimeout(() => poll(data.id), 1500);
+    } catch (e) {
+      editorError = (e as Error).message;
+    } finally {
+      verifying = false;
+    }
+  }
 </script>
 
 <svelte:head
@@ -317,8 +626,8 @@
             stay with every record.
           </p>
           <p>
-            Google Maps lookups are optional suggestions. They do not verify
-            legal registration or provide email addresses.
+            Real-world checks against websites, Google Maps and directories
+            produce suggestions only. They do not verify legal registration.
           </p>
         </div>
         <button
@@ -423,17 +732,57 @@
                 type="checkbox"
                 class="checkbox checkbox-sm"
                 bind:checked={enrich}
-                disabled={!config.google}
+                disabled={!anySourceReady}
               /><span
-                ><strong>Compare with Google Maps</strong><span
-                  >Look for address, phone and business-status suggestions.</span
+                ><strong>Verify against real-world sources</strong><span
+                  >Check whether each business still exists and collect
+                  suggested corrections for review.</span
                 ></span
               ></label
             ><span
               class="badge connection-badge"
-              class:connected={config.google}
-              >{config.google ? 'Connected' : 'Not connected'}</span
+              class:connected={anySourceReady}
+              >{anySourceReady ? 'Connected' : 'Not connected'}</span
             >
+            {#if enrich && anySourceReady}
+              <div class="enrich-options">
+                <span class="small-label">SOURCES</span>
+                <div class="source-grid">
+                  {#each SOURCES as source (source.key)}
+                    {@const ready = Boolean(config.sources[source.key])}
+                    <label class="source-option" class:unavailable={!ready}
+                      ><input
+                        type="checkbox"
+                        class="checkbox checkbox-xs"
+                        disabled={!ready}
+                        bind:checked={selectedSources[source.key]}
+                      /><span
+                        >{source.label}{#if !ready}<span
+                            class="badge connection-badge">Not connected</span
+                          >{/if}</span
+                      ></label
+                    >
+                  {/each}
+                </div>
+                <details class="advanced-details">
+                  <summary>Advanced</summary>
+                  <label class="field-label budget-field" for="upload-budget"
+                    >Budget (EUR)</label
+                  >
+                  <div class="budget-row">
+                    <input
+                      id="upload-budget"
+                      type="number"
+                      class="input"
+                      min="0.5"
+                      step="0.5"
+                      bind:value={budget}
+                    />
+                    <p>Stop verifying when this estimate is reached.</p>
+                  </div>
+                </details>
+              </div>
+            {/if}
           </div>
           <details class="notification-details">
             <summary
@@ -548,8 +897,8 @@
         </div>
         <div class="progress-label">
           <span
-            >{job?.phase === 'google'
-              ? 'Comparing Google Maps candidates'
+            >{job?.phase === 'google' || job?.phase === 'enrich'
+              ? 'Verifying against real-world sources'
               : 'Checking records'}</span
           ><strong>{progress}%</strong>
         </div>
@@ -563,39 +912,88 @@
           {job?.progress.toLocaleString() ?? 0} of {job?.total.toLocaleString() ??
             '—'} records processed
         </p>
-        <div class="validation-layers">
-          <div>
-            <span class="layer-status done"
-              ><Icon name="check" size={16} /></span
-            >
-            <div>
-              <strong>Read & organise</strong>
-              <p>Identify columns and preserve source data</p>
+        {#if job?.enrich}
+          <div class="verify-board" aria-label="Live verification">
+            <div class="tally-strip" role="status" aria-live="polite">
+              <span class="tally-pill active"
+                >Likely active <strong>{tallies.likely_active}</strong></span
+              ><span class="tally-pill ceased"
+                >Likely ceased <strong>{tallies.likely_ceased}</strong></span
+              ><span class="tally-pill unclear"
+                >Unclear <strong>{tallies.unclear}</strong></span
+              ><span class="tally-pill"
+                >Skipped <strong>{tallies.skipped}</strong></span
+              ><span class="tally-pill running"
+                >Running <strong>{tallies.running}</strong></span
+              ><span class="tally-pill"
+                >Waiting <strong>{tallies.waiting}</strong></span
+              >
             </div>
-            <span>Complete</span>
-          </div>
-          <div>
-            <span class="layer-status"><Icon name="layers" size={16} /></span>
-            <div>
-              <strong>Check data quality</strong>
-              <p>Identifiers, duplicate records and missing fields</p>
+            <div class="board-scroll">
+              {#each board as item (item.row.id)}
+                {@const v = item.row.verification}
+                <div class="board-row" class:running={v?.verdict === 'running'}>
+                  <span class="board-name" title={item.row.name}
+                    >{item.row.name || 'Unnamed business'}</span
+                  >
+                  <span class="chip-strip">
+                    {#each jobStages as stage (stage.key)}
+                      {@const state = chipState(item.row, stage.key)}
+                      <span
+                        class="stage-chip {state}"
+                        title={chipTitle(item.row, stage.key)}
+                        >{stage.label}</span
+                      >
+                    {/each}
+                  </span>
+                  {#if v}<span
+                      class="badge board-badge {VERDICT_BADGE[v.verdict] ??
+                        'neutral-badge'}"
+                      >{VERDICTS[v.verdict] ?? v.verdict}</span
+                    >{:else}<span class="board-waiting">Waiting</span>{/if}
+                </div>
+              {/each}
             </div>
-            <span>In progress</span>
+            {#if rows.length > BOARD_LIMIT}<p class="board-more">
+                and {(rows.length - BOARD_LIMIT).toLocaleString()} more
+              </p>{/if}
           </div>
-          <div>
-            <span class="layer-status muted"><Icon name="pin" size={16} /></span
-            >
+        {:else}
+          <div class="validation-layers">
             <div>
-              <strong>Compare business information</strong>
-              <p>
-                {job?.enrich
-                  ? 'Google Maps candidates are suggestions to review'
-                  : 'Google Maps comparison was not requested'}
-              </p>
+              <span class="layer-status done"
+                ><Icon name="check" size={16} /></span
+              >
+              <div>
+                <strong>Read & organise</strong>
+                <p>Identify columns and preserve source data</p>
+              </div>
+              <span>Complete</span>
             </div>
-            <span>{job?.enrich ? 'Queued' : 'Skipped'}</span>
+            <div>
+              <span class="layer-status"><Icon name="layers" size={16} /></span>
+              <div>
+                <strong>Check data quality</strong>
+                <p>Identifiers, duplicate records and missing fields</p>
+              </div>
+              <span>In progress</span>
+            </div>
+            <div>
+              <span class="layer-status muted"
+                ><Icon name="pin" size={16} /></span
+              >
+              <div>
+                <strong>Verify against real-world sources</strong>
+                <p>
+                  {job?.enrich
+                    ? 'Websites, Google Maps and directories supply evidence; every suggestion is reviewed by you'
+                    : 'Real-world verification was not requested'}
+                </p>
+              </div>
+              <span>{job?.enrich ? 'Queued' : 'Skipped'}</span>
+            </div>
           </div>
-        </div>
+        {/if}
         <div class="email-callout">
           <Icon name="mail" size={24} />
           <div>
@@ -647,9 +1045,20 @@
               ? `${attention} records need a closer look.`
               : 'No unresolved checks remain.'}<span
               >{job.enrich
-                ? 'Google Maps candidates require a human check.'
-                : 'Source data checked. Google Maps comparison was not run.'}</span
+                ? 'Well-supported contact details were filled in automatically; everything else waits for your decision.'
+                : 'Source data checked. Real-world verification was not run.'}</span
             >
+            {#if job.enrichment}<span class="tally-strip summary-tallies"
+                ><span class="tally-pill active"
+                  >Likely active <strong>{tallies.likely_active}</strong></span
+                ><span class="tally-pill ceased"
+                  >Likely ceased <strong>{tallies.likely_ceased}</strong></span
+                ><span class="tally-pill unclear"
+                  >Unclear <strong>{tallies.unclear}</strong></span
+                ><span class="tally-pill"
+                  >Skipped <strong>{tallies.skipped}</strong></span
+                ></span
+              >{/if}
           </p>
         </div>
         <div class="export-controls">
@@ -689,6 +1098,10 @@
               class:active={filter === 'reviewed'}
               onclick={() => (filter = 'reviewed')}
               >Reviewed <span>{reviewed}</span></button
+            ><button
+              class:active={filter === 'ceased'}
+              onclick={() => (filter = 'ceased')}
+              >Likely ceased <span class="brick-count">{ceased}</span></button
             ><button
               class:active={filter === 'missing'}
               onclick={() => (filter = 'missing')}>Missing contact info</button
@@ -734,7 +1147,10 @@
                   ></tr
                 ></thead
               ><tbody
-                >{#each visible as row}<tr
+                >{#each visible as row}{@const verdict =
+                    rowVerdict(row)}{@const auto =
+                    autoVerified(row).length}{@const pending =
+                    pendingSuggestions(row).length}<tr
                     ><td
                       ><strong>{row.name || 'Unnamed business'}</strong><span
                         class="row-secondary"
@@ -745,7 +1161,19 @@
                           : 'Enterprise'}</span
                       ></td
                     ><td class="address-cell"
-                      >{row.address || 'No address provided'}</td
+                      >{row.address ||
+                        'No address provided'}{#if row.phone || row.email}<span
+                          class="row-contact"
+                          >{#if row.phone}<span
+                              >{row.phone}{#if isAuto(row, 'phone')}<span
+                                  class="auto-tag">auto</span
+                                >{/if}</span
+                            >{/if}{#if row.email}<span
+                              >{row.email}{#if isAuto(row, 'email')}<span
+                                  class="auto-tag">auto</span
+                                >{/if}</span
+                            >{/if}</span
+                        >{/if}</td
                     ><td
                       ><span class="source-status"
                         >{row.status || 'Not provided'}</span
@@ -753,18 +1181,20 @@
                     ><td
                       >{#if row.reviewed}<span class="badge reviewed-badge"
                           ><Icon name="check" size={12} />Reviewed</span
-                        >{:else if needsReview(row)}<span
-                          class="badge attention-badge">Needs review</span
-                        >{:else}<span class="badge neutral-badge"
-                          >Checks passed</span
-                        >{/if}<span class="row-secondary"
-                        >{row.issues[0] ||
-                          (row.google
-                            ? 'Google Maps candidate'
-                            : row.googleError
-                              ? 'Google Maps unavailable'
-                              : 'Source checks only')}</span
-                      ></td
+                        >{:else}<span class="badge {verdict.badge}"
+                          >{verdict.label}</span
+                        >{/if}{#if auto || pending || row.issues[0] || row.googleError}<span
+                          class="row-summary"
+                          >{#if auto}<span class="mini-pill auto"
+                              ><Icon name="check" size={10} />{auto} auto-verified</span
+                            >{/if}{#if pending}<span class="mini-pill pending"
+                              >{pending} to decide</span
+                            >{/if}{#if row.issues[0]}<span class="row-issue"
+                              >{row.issues[0]}</span
+                            >{:else if row.googleError}<span class="row-issue"
+                              >Google Maps unavailable</span
+                            >{/if}</span
+                        >{/if}</td
                     ><td
                       ><button
                         class="review-button"
@@ -876,12 +1306,26 @@
         </p>
         <h2 id="editor-title">Review business details</h2>
       </div>
-      <button
-        class="icon-button"
-        disabled={saving}
-        onclick={() => (editor = null)}
-        aria-label="Close record"><Icon name="close" /></button
-      >
+      <div class="editor-header-actions">
+        <button
+          class="btn btn-outline btn-sm"
+          type="button"
+          disabled={saving || verifying || editorQueued || !anySourceReady}
+          title={anySourceReady
+            ? 'Re-run real-world verification for this record'
+            : 'No verification source is connected'}
+          onclick={verifyBusiness}
+          >{#if verifying || editorQueued}<span
+              class="loading loading-spinner loading-xs"
+            ></span>{editorQueued ? 'Verifying…' : 'Queuing…'}{:else}Verify this
+            business{/if}</button
+        ><button
+          class="icon-button"
+          disabled={saving}
+          onclick={() => (editor = null)}
+          aria-label="Close record"><Icon name="close" /></button
+        >
+      </div>
     </div>
     <form onsubmit={saveEdit} class="editor-form">
       <p class="editor-number">
@@ -896,6 +1340,164 @@
             {#each editor.issues as issue}<li>{issue}</li>{/each}
           </ul>
         </div>{/if}
+      {#if editor.verification}
+        {@const v = editor.verification}
+        <div class="verification-block">
+          <div
+            class="verdict-banner"
+            class:active={v.verdict === 'likely_active'}
+            class:ceased={v.verdict === 'likely_ceased'}
+            class:unclear={v.verdict === 'unclear'}
+            class:queued={v.verdict === 'not_run' || v.verdict === 'running'}
+            role="status"
+          >
+            <div class="verdict-line">
+              <strong
+                >{#if isQueued(editor)}<span
+                    class="loading loading-spinner loading-xs"
+                  ></span>{/if}{VERDICTS[v.verdict] ?? v.verdict}</strong
+              >
+            </div>
+            {#if isQueued(editor)}
+              <p>
+                {v.verdict === 'running'
+                  ? 'Sources are being checked. The trail below fills in as each stage finishes.'
+                  : 'Waiting for a free worker. Verification starts in a moment.'}
+              </p>
+            {:else}
+              {#if v.reason}<p>{v.reason}</p>{/if}
+              <span class="verdict-meta"
+                >{v.sources?.length
+                  ? 'Sources: ' + v.sources.map(sourceLabel).join(', ')
+                  : v.skipped
+                    ? 'Skipped: ' + v.skipped.replaceAll('_', ' ')
+                    : 'No sources ran'}</span
+              >
+            {/if}
+          </div>
+          {#if v.trace?.length}
+            <details class="trail-details" open>
+              <summary>Verification trail</summary>
+              <ol class="trail">
+                {#each v.trace as step, i (i)}
+                  <li class="trail-step {step.status}">
+                    {#if step.status === 'running'}<span
+                        class="loading loading-spinner loading-xs trail-dot"
+                      ></span>{:else}<span class="trail-dot"></span>{/if}
+                    <span class="trail-stage"
+                      >{STAGE_LABELS[step.stage] ?? step.stage}</span
+                    >
+                    <span class="trail-note">{step.note}</span>
+                    <span class="trail-meta"
+                      >{#if step.findings > 0}<span>{step.findings} found</span
+                        >{/if}<span>{duration(step)}</span></span
+                    >
+                  </li>
+                {/each}
+              </ol>
+            </details>
+          {/if}
+          {#if editor.suggestions?.length && !isQueued(editor)}
+            {#if editorPending.length >= 2}
+              <div class="suggestion-toolbar">
+                <span>{editorPending.length} suggestions waiting</span>
+                <button
+                  type="button"
+                  class="btn btn-outline btn-sm"
+                  disabled={Boolean(accepting) || saving}
+                  onclick={acceptAllPending}
+                  >{accepting ? 'Accepting…' : 'Accept all pending'}</button
+                >
+              </div>
+            {/if}
+            <div class="suggestion-scroll">
+              <table class="suggestion-table">
+                <thead
+                  ><tr
+                    ><th>Field</th><th>Suggested</th><th>Confidence</th><th
+                      >Source</th
+                    ><th><span class="sr-only">Action</span></th></tr
+                  ></thead
+                >
+                <tbody>
+                  {#each editor.suggestions as suggestion (suggestion.field)}
+                    {@const first = suggestion.evidence?.[0]}
+                    {@const pct = Math.round(
+                      Math.min(1, Math.max(0, suggestion.confidence)) * 100
+                    )}
+                    <tr>
+                      <td><strong>{FIELD_LABELS[suggestion.field]}</strong></td>
+                      <td class="suggestion-value"
+                        >{suggestion.value ||
+                          '—'}{#if suggestion.kind === 'different' && suggestion.current}<span
+                            class="suggestion-current"
+                            title="Value in the uploaded file"
+                            >was {suggestion.current}</span
+                          >{/if}</td
+                      >
+                      <td
+                        ><span class="confidence"
+                          ><span class="confidence-bar"
+                            ><i style:width="{pct}%"></i></span
+                          >{pct}%</span
+                        ></td
+                      >
+                      <td
+                        >{#if first?.url?.startsWith('http')}<a
+                            href={first.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={first.note}
+                            >{sourceLabel(first.source)}<Icon
+                              name="external"
+                              size={12}
+                            /></a
+                          >{:else if first}<span title={first.note}
+                            >{sourceLabel(first.source)}</span
+                          >{:else}—{/if}</td
+                      >
+                      <td
+                        >{#if suggestion.auto && suggestion.accepted}<span
+                            class="suggestion-actions"
+                            ><span class="badge reviewed-badge"
+                              ><Icon
+                                name="check"
+                                size={11}
+                              />Auto-verified</span
+                            ><button
+                              type="button"
+                              class="btn btn-ghost btn-sm"
+                              disabled={Boolean(accepting) || saving}
+                              onclick={() => undoSuggestion(suggestion)}
+                              >{accepting === suggestion.field
+                                ? 'Undoing…'
+                                : 'Undo'}</button
+                            ></span
+                          >{:else}<button
+                            type="button"
+                            class="btn btn-outline btn-sm"
+                            disabled={suggestion.accepted ||
+                              suggestion.kind === 'confirmed' ||
+                              Boolean(accepting) ||
+                              saving}
+                            onclick={() => acceptSuggestion(suggestion)}
+                            >{suggestion.accepted
+                              ? 'Accepted'
+                              : suggestion.kind === 'confirmed'
+                                ? 'Matches'
+                                : accepting === suggestion.field
+                                  ? 'Accepting…'
+                                  : 'Accept'}</button
+                          >{/if}</td
+                      >
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </div>
+      {/if}
       <label class="field-label"
         >Business name<input class="input" bind:value={editor.name} /></label
       ><label class="field-label"

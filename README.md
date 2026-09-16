@@ -24,15 +24,15 @@ internal/model       Record, Place, Job (JSON tags are the on-disk and wire form
 internal/parse       CSV / JSON / GeoJSON → records, source columns preserved
 internal/validate    identifier checksum, duplicates, missing fields, email syntax, status terms
 internal/store       Store interface; atomic JSON-file implementation; in-memory test double
-internal/google      Places Text Search client (unconfirmed candidates only)
+internal/enrich      verification pipeline: sources (google, website, databe, directories, vkbo), OpenAI judge, budget, cache, reconcile
 internal/notify      Resend completion email with idempotency key
-internal/jobs        job registry, locking, processing pipeline, notification state machine
+internal/jobs        job registry, locking, processing worker pool, accept/verify, notification state machine
 internal/httpapi     Gin routes, same-origin and body-size middleware, security headers, static site
 web/                 embed.go embeds web/dist, the SvelteKit static build (gitignored)
 src/                 SvelteKit frontend
 ```
 
-Dependencies point inward: `httpapi → jobs → {store, parse, validate, google, notify} → model`. Only `httpapi` knows about HTTP.
+Dependencies point inward: `httpapi → jobs → {store, parse, validate, enrich, notify} → model`. Only `httpapi` knows about HTTP.
 
 ## Supported files
 
@@ -50,7 +50,9 @@ The review drawer edits names, addresses, phone, email, website and notes. Sourc
 
 ## Optional connections
 
-**Google Places (New):** set `GOOGLE_MAPS_API_KEY` with Places API access. The checkbox is disabled until configured. Each opted-in row with a name and address makes one Text Search call (billable); a maximum of two files process concurrently. The top candidate is explicitly unconfirmed, and names/addresses/status/phone/websites are never silently applied. Per-record API errors are visible. External closure status never replaces official registration status. Google provides no email-address field. Live integration has not been tested with credentials. Confirm the applicable Google Maps licensing, attribution, retention and export terms before enabling it for an operational dataset; this local prototype currently persists candidate responses with the job.
+**Google Places (New):** set `GOOGLE_MAPS_API_KEY` with Places API access to enable the Google source. Each verified row makes one Text Search call (billable, metered against the job budget); a maximum of two files process concurrently. The top candidate is explicitly unconfirmed and is shown alongside the suggestions. Google provides no email-address field; email comes from the business website. Live integration has not been tested with credentials. Confirm the applicable Google Maps licensing, attribution, retention and export terms before enabling it for an operational dataset; candidate responses are cached and persisted with the job.
+
+**Real-world verification:** the uploaded registry data is treated as a set of claims, including the registration status. Ticking "Verify against real-world sources" runs, per record: Google Places (business status, phone, website, address), the business's own website (no AI: contact pages are fetched and email, phone and VAT number extracted; a closure notice, parked domain or dead site count as evidence), optional directories and data.be, and finally an OpenAI mini model that only reads the collected evidence to settle unclear cases and fill gaps. Rules combine the signals into a verdict: **likely active**, **likely ceased**, **unclear** or **skipped**, always shown next to the registry status. Every field where the evidence disagrees with the record becomes a suggestion with confidence and a source link. Contact fields (phone, email, website, address) are applied automatically when confidence is at least 90% and two independent sources agree; these are marked auto-verified, noted in the record, and can be undone. Name, registration status and activity always wait for a reviewer. Generic role mailboxes such as info@, contact@ or sales@ are never proposed as the business email. Estimated per-row and per-job costs are written to the server log rather than shown in the interface. Co-owner associations are skipped by default, and "Verify this business" re-runs any single record. Each job has a spend cap in EUR estimated from per-call prices; when it is reached, remaining rows are marked skipped. Every row keeps a verification trail (each stage, what it found, duration and cost), shown live on the processing screen and in the review drawer. Source and AI responses are cached under `DATA_DIR/cache` for 30 days so re-running a file is free. Configure `OPENAI_API_KEY`, `GOOGLE_MAPS_API_KEY`, `DATABE_TOKEN` and `ENRICH_DIRECTORIES` in `.env`; see `.env.example`. The registry re-check source only notes when the registry changed since the export; it never decides a verdict.
 
 **Map view (Mapbox):** set `MAPBOX_ACCESS_TOKEN` to a Mapbox _public_ token (`pk.…`) with Styles and Tiles scopes. The results screen then offers a List / Map toggle; the Map button stays disabled until a token is configured. The map plots every filtered record that has coordinates as a circle coloured by review state, shows a hover popup, and opens the review drawer on click. Records without coordinates are counted above the map and remain in the list; no position is ever invented. Only public tokens are exposed to the browser; the server ignores secret (`sk.`) tokens. Restrict the token by URL in your Mapbox account. Opening the map loads Mapbox GL JS on demand and fetches styles and vector tiles from `api.mapbox.com`, which is an outbound browser connection subject to Mapbox's billing and terms. Map attribution must remain visible.
 

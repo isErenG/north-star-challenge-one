@@ -1,8 +1,30 @@
-import type { Business, Job } from './types';
+import type { Business, Job, Suggestion, SuggestionField } from './types';
+export const SUGGESTION_FIELDS: SuggestionField[] = [
+  'name',
+  'address',
+  'phone',
+  'email',
+  'website',
+  'activity',
+  'status'
+];
+export function pendingSuggestions(row: Business): Suggestion[] {
+  return (row.suggestions ?? []).filter(
+    (s) => !s.accepted && s.kind !== 'confirmed'
+  );
+}
+export function autoVerified(row: Business): Suggestion[] {
+  return (row.suggestions ?? []).filter((s) => s.auto && s.accepted);
+}
 export function needsReview(row: Business) {
+  if (row.reviewed) return false;
+  const verdict = row.verification?.verdict;
   return (
-    !row.reviewed &&
-    (row.issues.length > 0 || Boolean(row.google) || Boolean(row.googleError))
+    row.issues.length > 0 ||
+    Boolean(row.googleError) ||
+    verdict === 'likely_ceased' ||
+    verdict === 'unclear' ||
+    pendingSuggestions(row).length > 0
   );
 }
 export function csvCell(value: unknown): string {
@@ -77,16 +99,34 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
     row.google?.googleMapsUri,
     row.googleError
   ];
+  const verdictFields = ['verdict', 'verdict_reason', 'auto_verified'];
+  const suggestedValue = (row: Business, field: SuggestionField) =>
+    row.suggestions?.find((s) => s.field === field)?.value ?? '';
+  const verificationValues = (row: Business) => [
+    row.verification?.verdict,
+    row.verification?.reason,
+    autoVerified(row)
+      .map((s) => s.field)
+      .join('; '),
+    ...SUGGESTION_FIELDS.map((field) => suggestedValue(row, field))
+  ];
   while (
-    fields.some((key) => sourceKeys.includes(prefix + key)) || googleFields.some((key) =>
+    fields.some((key) => sourceKeys.includes(prefix + key)) ||
+    googleFields.some((key) =>
       sourceKeys.includes(prefix + 'google_candidate_' + key)
+    ) ||
+    verdictFields.some((key) => sourceKeys.includes(prefix + key)) ||
+    SUGGESTION_FIELDS.some((key) =>
+      sourceKeys.includes(prefix + 'suggested_' + key)
     )
   )
     prefix = '_' + prefix;
   const headers = [
     ...sourceKeys,
     ...fields.map((key) => prefix + key),
-    ...googleFields.map((key) => prefix + 'google_candidate_' + key)
+    ...googleFields.map((key) => prefix + 'google_candidate_' + key),
+    ...verdictFields.map((key) => prefix + key),
+    ...SUGGESTION_FIELDS.map((key) => prefix + 'suggested_' + key)
   ];
   return (
     '\ufeff' +
@@ -98,7 +138,8 @@ export function exportJob(job: Job, format: 'json' | 'csv' | 'geojson') {
           ...fields.map((key) =>
             key === 'issues' ? row.issues.join('; ') : row[key]
           ),
-          ...googleValues(row)
+          ...googleValues(row),
+          ...verificationValues(row)
         ]
           .map(csvCell)
           .join(',')

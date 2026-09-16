@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"kbo-review/internal/config"
-	"kbo-review/internal/google"
+	"kbo-review/internal/enrich"
 	"kbo-review/internal/httpapi"
 	"kbo-review/internal/jobs"
 	"kbo-review/internal/notify"
@@ -30,7 +30,7 @@ func Run() {
 	if err != nil {
 		log.Fatalf("data directory: %v", err)
 	}
-	svc, err := jobs.New(st, google.New(cfg.GoogleKey), notify.New(cfg.ResendKey, cfg.NotifyFrom, cfg.PublicAppURL))
+	svc, err := jobs.New(st, enrich.New(cfg), notify.New(cfg.ResendKey, cfg.NotifyFrom, cfg.PublicAppURL), cfg.DefaultBudget)
 	if err != nil {
 		log.Fatalf("loading jobs: %v", err)
 	}

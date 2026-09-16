@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"kbo-review/internal/config"
-	"kbo-review/internal/google"
+	"kbo-review/internal/enrich"
 	"kbo-review/internal/jobs"
 	"kbo-review/internal/notify"
 	"kbo-review/internal/store"
@@ -21,7 +21,7 @@ import (
 
 func newServer(t *testing.T) http.Handler {
 	t.Helper()
-	svc, err := jobs.New(store.NewMemory(), google.New(""), notify.New("", "", ""))
+	svc, err := jobs.New(store.NewMemory(), enrich.NewWith(nil, enrich.NewWebsite(enrich.NoCache{})), notify.New("", "", ""), 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func upload(t *testing.T, h http.Handler, csv string, origin string) *httptest.R
 func TestUploadReviewFlow(t *testing.T) {
 	h := newServer(t)
 	w := do(h, "GET", "/api/config", nil, nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"mapbox":"pk.test"`) || !strings.Contains(w.Body.String(), `"google":false`) {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"mapbox":"pk.test"`) || !strings.Contains(w.Body.String(), `"google":false`) || !strings.Contains(w.Body.String(), `"defaultBudgetEur":5`) || !strings.Contains(w.Body.String(), `"website":true`) {
 		t.Fatalf("config: %d %s", w.Code, w.Body.String())
 	}
 	if w.Header().Get("Cache-Control") != "no-store" || w.Header().Get("Content-Security-Policy") == "" {
@@ -96,6 +96,18 @@ func TestUploadReviewFlow(t *testing.T) {
 	w = do(h, "GET", "/api/jobs/nope", nil, nil)
 	if w.Code != 404 {
 		t.Fatalf("missing job: %d", w.Code)
+	}
+	w = do(h, "PATCH", "/api/jobs/"+created.ID, []byte(`{"accept":{"id":"1","field":"phone"}}`), map[string]string{"Content-Type": "application/json", "Origin": "http://example.test"})
+	if w.Code != 404 {
+		t.Fatalf("accept without suggestion: %d %s", w.Code, w.Body.String())
+	}
+	w = do(h, "PATCH", "/api/jobs/"+created.ID, []byte(`{"undo":{"id":"1","field":"phone"}}`), map[string]string{"Content-Type": "application/json", "Origin": "http://example.test"})
+	if w.Code != 404 || !strings.Contains(w.Body.String(), "Nothing to undo") {
+		t.Fatalf("undo without acceptance: %d %s", w.Code, w.Body.String())
+	}
+	w = do(h, "PATCH", "/api/jobs/"+created.ID, []byte(`{"verify":{"id":"1"}}`), map[string]string{"Content-Type": "application/json", "Origin": "http://example.test"})
+	if w.Code != 202 || !strings.Contains(w.Body.String(), `"verdict":"not_run"`) {
+		t.Fatalf("verify: %d %s", w.Code, w.Body.String())
 	}
 }
 

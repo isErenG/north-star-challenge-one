@@ -22,6 +22,85 @@ type Record struct {
 	Source       map[string]any `json:"source"`
 	Google       *Place         `json:"google,omitempty"`
 	GoogleError  string         `json:"googleError,omitempty"`
+	Verification *Verification  `json:"verification,omitempty"`
+	Suggestions  []Suggestion   `json:"suggestions,omitempty"`
+}
+
+// Evidence is one piece of support for a suggestion.
+type Evidence struct {
+	Source string `json:"source"`
+	URL    string `json:"url,omitempty"`
+	Note   string `json:"note,omitempty"`
+}
+
+// Suggestion kinds.
+const (
+	KindConfirmed = "confirmed"
+	KindDifferent = "different"
+	KindNew       = "new"
+)
+
+// Suggestion is a proposed value for one field, never applied automatically.
+type Suggestion struct {
+	Field      string     `json:"field"`
+	Current    string     `json:"current"`
+	Value      string     `json:"value"`
+	Kind       string     `json:"kind"`
+	Confidence float64    `json:"confidence"`
+	Evidence   []Evidence `json:"evidence"`
+	Accepted   bool       `json:"accepted,omitempty"`
+	Auto       bool       `json:"auto,omitempty"` // applied automatically: high confidence, two sources agree
+}
+
+// Verdicts.
+const (
+	VerdictRunning = "running"
+	VerdictActive  = "likely_active"
+	VerdictCeased  = "likely_ceased"
+	VerdictUnclear = "unclear"
+	VerdictSkipped = "skipped"
+	VerdictNotRun  = "not_run"
+)
+
+// Step statuses.
+const (
+	StepRunning = "running"
+	StepDone    = "done"
+	StepSkipped = "skipped"
+	StepFailed  = "failed"
+)
+
+// Step is one stage of a record's verification, kept so reviewers can see
+// what ran, what it found and what it cost.
+type Step struct {
+	Stage     string  `json:"stage"` // checks | google | website | databe | goldenpages | trendstop | vkbo | judge | extract | reconcile
+	Status    string  `json:"status"`
+	Note      string  `json:"note"`
+	Cost      float64 `json:"cost"`
+	Findings  int     `json:"findings"`
+	StartedAt string  `json:"startedAt"`
+	EndedAt   string  `json:"endedAt,omitempty"`
+}
+
+// Verification is the real-world existence check for one record.
+type Verification struct {
+	Verdict   string   `json:"verdict"`
+	Reason    string   `json:"reason"`
+	Sources   []string `json:"sources"`
+	Skipped   string   `json:"skipped,omitempty"`
+	Cost      float64  `json:"cost"`
+	CheckedAt string   `json:"checkedAt"`
+	Trace     []Step   `json:"trace"`
+}
+
+// Enrichment tracks a job's verification run and budget.
+type Enrichment struct {
+	Sources     []string `json:"sources"`
+	BudgetEUR   float64  `json:"budgetEur"`
+	SpentEUR    float64  `json:"spentEur"`
+	Verified    int      `json:"verified"`
+	Skipped     int      `json:"skipped"`
+	Concurrency int      `json:"concurrency"`
 }
 
 // Place is an unconfirmed Google Places candidate for a record.
@@ -56,16 +135,17 @@ const (
 
 // Job is one uploaded file and its processing outcome.
 type Job struct {
-	ID           string   `json:"id"`
-	Filename     string   `json:"filename"`
-	Created      string   `json:"created"`
-	State        string   `json:"state"`
-	Phase        string   `json:"phase"`
-	Progress     int      `json:"progress"`
-	Total        int      `json:"total"`
-	Records      []Record `json:"records"`
-	Email        string   `json:"email"`
-	Notification string   `json:"notification"`
-	Enrich       bool     `json:"enrich"`
-	Error        string   `json:"error,omitempty"`
+	ID           string      `json:"id"`
+	Filename     string      `json:"filename"`
+	Created      string      `json:"created"`
+	State        string      `json:"state"`
+	Phase        string      `json:"phase"`
+	Progress     int         `json:"progress"`
+	Total        int         `json:"total"`
+	Records      []Record    `json:"records"`
+	Email        string      `json:"email"`
+	Notification string      `json:"notification"`
+	Enrich       bool        `json:"enrich"`
+	Enrichment   *Enrichment `json:"enrichment,omitempty"`
+	Error        string      `json:"error,omitempty"`
 }
