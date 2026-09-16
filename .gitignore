@@ -1,0 +1,11 @@
+node_modules/
+.svelte-kit/
+build/
+.context/
+.env
+.env.*
+!.env.example
+server/data/
+server/kbo-review
+test-results/
+playwright-report/
