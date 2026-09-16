@@ -7,6 +7,8 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite dev --host 127.0.0.1",
     "build": "vite build",
+    "build:go": "go build -trimpath -ldflags=\"-s -w\" -o bin/kbo-review ./cmd/kbo-review",
+    "build:all": "npm run build && npm run build:go",
     "preview": "vite preview --host 127.0.0.1",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "setup:go": "node scripts/setup-go.mjs",
@@ -16,7 +18,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
-    "@sveltejs/adapter-node": "^5.0.0",
+    "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^6.0.0",
     "@tailwindcss/vite": "^4.0.0",

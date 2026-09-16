@@ -1,0 +1,18 @@
+services:
+  kbo-review:
+    build: .
+    image: kbo-review:local
+    # Published on loopback only; the app is a private link, not an authenticated service.
+    ports:
+      - '127.0.0.1:8787:8787'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ADDR: 0.0.0.0:8787
+      DATA_DIR: /data
+    volumes:
+      - kbo-data:/data
+    restart: unless-stopped
+volumes:
+  kbo-data:
