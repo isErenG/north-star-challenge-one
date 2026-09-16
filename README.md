@@ -32,6 +32,8 @@ The review drawer edits names, addresses, phone, email, website and notes. Sourc
 
 **Google Places (New):** set `GOOGLE_MAPS_API_KEY` with Places API access. The checkbox is disabled until configured. Each opted-in row with a name and address makes one Text Search call (billable); a maximum of two files process concurrently. The top candidate is explicitly unconfirmed, and names/addresses/status/phone/websites are never silently applied. Per-record API errors are visible. External closure status never replaces official registration status. Google provides no email-address field. Live integration has not been tested with credentials. Confirm the applicable Google Maps licensing, attribution, retention and export terms before enabling it for an operational dataset; this local prototype currently persists candidate responses with the job.
 
+**Map view (Mapbox):** set `MAPBOX_ACCESS_TOKEN` to a Mapbox _public_ token (`pk.…`) with Styles and Tiles scopes. The results screen then offers a List / Map toggle; the Map button stays disabled until a token is configured. The map plots every filtered record that has coordinates as a circle coloured by review state, shows a hover popup, and opens the review drawer on click. Records without coordinates are counted above the map and remain in the list; no position is ever invented. Only public tokens are exposed to the browser; the server ignores secret (`sk.`) tokens. Restrict the token by URL in your Mapbox account. Opening the map loads Mapbox GL JS on demand and fetches styles and vector tiles from `api.mapbox.com`, which is an outbound browser connection subject to Mapbox's billing and terms. Map attribution must remain visible.
+
 **Completion email:** set `RESEND_API_KEY`, `NOTIFY_FROM` (a verified sender) and optionally `PUBLIC_APP_URL` (HTTPS). Users can request one notice during upload/processing or after completion. Jobs use a stable provider idempotency key. Provider failures are surfaced rather than reported as sent. Notifications are not enabled by default; no email is sent during tests. A notice without `PUBLIC_APP_URL` tells the recipient to return to their existing tab. Provider acceptance is not proof of inbox delivery.
 
 ## Storage and deployment boundary
@@ -51,7 +53,7 @@ npm run build
 TEST_URL=http://127.0.0.1:5173 npx playwright test # with npm run dev active
 ```
 
-Browser tests use synthetic inputs to cover CSV upload, JSON/GeoJSON drag-and-drop, malformed files, mobile overflow, record edits, refresh persistence, search, all export formats and CSV formula escaping. Screenshots are written to `.context/`.
+Browser tests use synthetic inputs to cover CSV upload, JSON/GeoJSON drag-and-drop, malformed files, mobile overflow, record edits, refresh persistence, search, all export formats, CSV formula escaping and the map view toggle (the map itself renders only when `MAPBOX_ACCESS_TOKEN` is set; otherwise the test asserts the disabled state). Screenshots are written to `.context/`.
 
 ## Source references
 

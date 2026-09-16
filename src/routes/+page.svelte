@@ -44,10 +44,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Icon from '$lib/Icon.svelte';
+  import MapView from '$lib/MapView.svelte';
   import { download, exportJob, needsReview } from '$lib/export';
   import type { Job, Business } from '$lib/types';
   let screen = $state<'upload' | 'processing' | 'results'>('upload');
-  let config = $state({ google: false, email: false });
+  let config = $state({ google: false, email: false, mapbox: '' });
   let file = $state<File | null>(null);
   let dragover = $state(false);
   let hydrated = $state(false);
@@ -58,6 +59,7 @@
   let job = $state<Job | null>(null);
   let query = $state('');
   let filter = $state('all');
+  let view = $state<'list' | 'map'>('list');
   let page = $state(0);
   let editor = $state<Business | null>(null);
   let editorError = $state('');
@@ -188,6 +190,7 @@
     error = '';
     query = '';
     filter = 'all';
+    view = 'list';
     page = 0;
     notificationMessage = '';
     editor = null;
@@ -691,98 +694,122 @@
               onclick={() => (filter = 'missing')}>Missing contact info</button
             >
           </div>
-          <label class="search-input"
-            ><Icon name="search" size={17} /><input
-              aria-label="Search businesses"
-              bind:value={query}
-              placeholder="Find a name, number or address…"
-            /></label
-          >
-        </div>
-        <div class="table-scroll">
-          <table class="table">
-            <thead
-              ><tr
-                ><th>Business / identifier</th><th>Address</th><th
-                  >Source status</th
-                ><th>Review</th><th><span class="sr-only">Actions</span></th
-                ></tr
-              ></thead
-            ><tbody
-              >{#each visible as row}<tr
-                  ><td
-                    ><strong>{row.name || 'Unnamed business'}</strong><span
-                      class="row-secondary"
-                      >{row.number || 'No identifier'}
-                      <span class="dot-divider">·</span>
-                      {row.kind === 'establishment'
-                        ? 'Establishment'
-                        : 'Enterprise'}</span
-                    ></td
-                  ><td class="address-cell"
-                    >{row.address || 'No address provided'}</td
-                  ><td
-                    ><span class="source-status"
-                      >{row.status || 'Not provided'}</span
-                    ></td
-                  ><td
-                    >{#if row.reviewed}<span class="badge reviewed-badge"
-                        ><Icon name="check" size={12} />Reviewed</span
-                      >{:else if needsReview(row)}<span
-                        class="badge attention-badge">Needs review</span
-                      >{:else}<span class="badge neutral-badge"
-                        >Checks passed</span
-                      >{/if}<span class="row-secondary"
-                      >{row.issues[0] ||
-                        (row.google
-                          ? 'Google Maps candidate'
-                          : row.googleError
-                            ? 'Google Maps unavailable'
-                            : 'Source checks only')}</span
-                    ></td
-                  ><td
-                    ><button
-                      class="review-button"
-                      onclick={() => openEditor(row)}
-                      aria-label={'Review ' + row.name}
-                      >Review <Icon name="chevron" size={15} /></button
-                    ></td
-                  ></tr
-                >{/each}</tbody
+          <div class="toolbar-right">
+            <label class="search-input"
+              ><Icon name="search" size={17} /><input
+                aria-label="Search businesses"
+                bind:value={query}
+                placeholder="Find a name, number or address…"
+              /></label
             >
-          </table>
-          {#if filtered.length === 0}<div class="empty-state">
-              <Icon name="search" size={26} />
-              <h3>No records match this view</h3>
-              <p>Try another search or return to all records.</p>
+            <div class="view-toggle" role="group" aria-label="View as">
               <button
-                class="btn btn-outline"
-                onclick={() => {
-                  query = '';
-                  filter = 'all';
-                }}>Show all records</button
+                class:active={view === 'list'}
+                aria-pressed={view === 'list'}
+                onclick={() => (view = 'list')}
+                ><Icon name="layers" size={14} /> List</button
+              ><button
+                class:active={view === 'map'}
+                aria-pressed={view === 'map'}
+                disabled={!config.mapbox}
+                title={config.mapbox
+                  ? 'Show records on a map'
+                  : 'Set MAPBOX_ACCESS_TOKEN to enable the map view'}
+                onclick={() => (view = 'map')}
+                ><Icon name="pin" size={14} /> Map</button
               >
-            </div>{/if}
-        </div>
-        <div class="pagination">
-          <span
-            >{filtered.length
-              ? `${page * 20 + 1}–${Math.min((page + 1) * 20, filtered.length)} of ${filtered.length} records`
-              : '0 records'}</span
-          >
-          <div>
-            <button
-              class="btn btn-sm btn-ghost"
-              disabled={page === 0}
-              onclick={() => page--}
-              ><Icon name="back" size={15} />Previous</button
-            ><button
-              class="btn btn-sm btn-ghost"
-              disabled={(page + 1) * 20 >= filtered.length}
-              onclick={() => page++}>Next<Icon name="arrow" size={15} /></button
-            >
+            </div>
           </div>
         </div>
+        {#if view === 'map' && config.mapbox}
+          <MapView rows={filtered} token={config.mapbox} onopen={openEditor} />
+        {:else}
+          <div class="table-scroll">
+            <table class="table">
+              <thead
+                ><tr
+                  ><th>Business / identifier</th><th>Address</th><th
+                    >Source status</th
+                  ><th>Review</th><th><span class="sr-only">Actions</span></th
+                  ></tr
+                ></thead
+              ><tbody
+                >{#each visible as row}<tr
+                    ><td
+                      ><strong>{row.name || 'Unnamed business'}</strong><span
+                        class="row-secondary"
+                        >{row.number || 'No identifier'}
+                        <span class="dot-divider">·</span>
+                        {row.kind === 'establishment'
+                          ? 'Establishment'
+                          : 'Enterprise'}</span
+                      ></td
+                    ><td class="address-cell"
+                      >{row.address || 'No address provided'}</td
+                    ><td
+                      ><span class="source-status"
+                        >{row.status || 'Not provided'}</span
+                      ></td
+                    ><td
+                      >{#if row.reviewed}<span class="badge reviewed-badge"
+                          ><Icon name="check" size={12} />Reviewed</span
+                        >{:else if needsReview(row)}<span
+                          class="badge attention-badge">Needs review</span
+                        >{:else}<span class="badge neutral-badge"
+                          >Checks passed</span
+                        >{/if}<span class="row-secondary"
+                        >{row.issues[0] ||
+                          (row.google
+                            ? 'Google Maps candidate'
+                            : row.googleError
+                              ? 'Google Maps unavailable'
+                              : 'Source checks only')}</span
+                      ></td
+                    ><td
+                      ><button
+                        class="review-button"
+                        onclick={() => openEditor(row)}
+                        aria-label={'Review ' + row.name}
+                        >Review <Icon name="chevron" size={15} /></button
+                      ></td
+                    ></tr
+                  >{/each}</tbody
+              >
+            </table>
+            {#if filtered.length === 0}<div class="empty-state">
+                <Icon name="search" size={26} />
+                <h3>No records match this view</h3>
+                <p>Try another search or return to all records.</p>
+                <button
+                  class="btn btn-outline"
+                  onclick={() => {
+                    query = '';
+                    filter = 'all';
+                  }}>Show all records</button
+                >
+              </div>{/if}
+          </div>
+          <div class="pagination">
+            <span
+              >{filtered.length
+                ? `${page * 20 + 1}–${Math.min((page + 1) * 20, filtered.length)} of ${filtered.length} records`
+                : '0 records'}</span
+            >
+            <div>
+              <button
+                class="btn btn-sm btn-ghost"
+                disabled={page === 0}
+                onclick={() => page--}
+                ><Icon name="back" size={15} />Previous</button
+              ><button
+                class="btn btn-sm btn-ghost"
+                disabled={(page + 1) * 20 >= filtered.length}
+                onclick={() => page++}
+                >Next<Icon name="arrow" size={15} /></button
+              >
+            </div>
+          </div>
+        {/if}
       </section>
       <div class="results-footnote">
         <p>

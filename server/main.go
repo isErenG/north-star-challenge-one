@@ -104,7 +104,7 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, 200, map[string]any{"google": os.Getenv("GOOGLE_MAPS_API_KEY") != "", "email": emailReady()})
+		respond(w, 200, map[string]any{"google": os.Getenv("GOOGLE_MAPS_API_KEY") != "", "email": emailReady(), "mapbox": mapboxToken()})
 	})
 	mux.HandleFunc("POST /api/jobs", createJob)
 	mux.HandleFunc("GET /api/jobs/{id}", getJob)
@@ -621,4 +621,14 @@ func validate(r *Record) {
 	if duplicate {
 		r.Issues = append(r.Issues, "Duplicate identifier")
 	}
+}
+
+// mapboxToken returns the public Mapbox token for the browser map, or "" when unset.
+// Only public tokens (pk.*) are exposed; a secret token is never sent to the client.
+func mapboxToken() string {
+	token := strings.TrimSpace(os.Getenv("MAPBOX_ACCESS_TOKEN"))
+	if !strings.HasPrefix(token, "pk.") {
+		return ""
+	}
+	return token
 }
