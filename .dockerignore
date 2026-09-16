@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+.svelte-kit
+web/dist
+build
+bin
+data
+.context
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+tests
+docs
+*.md

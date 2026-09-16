@@ -13,13 +13,11 @@ test('Dutch is server-rendered, the mobile switcher persists, and validation fol
   await page.goto('/');
   await expect(page.locator('.dropzone')).toBeEnabled();
   await expect(page.getByRole('combobox', { name: 'Taal' })).toBeVisible();
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'empty.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from('')
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'empty.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('')
+  });
   await expect(page.getByRole('alert')).toContainText('Dit bestand is leeg.');
   await page.getByRole('combobox', { name: 'Taal' }).selectOption('en');
   await expect(page.getByRole('alert')).toContainText('This file is empty.');
@@ -56,13 +54,11 @@ test('Dutch upload, backend errors, review, language switching, and unchanged ex
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(page.locator('.dropzone')).toBeEnabled();
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'bad.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from('name,name\none,two')
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'bad.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('name,name\none,two')
+  });
   await page
     .getByRole('button', { name: 'Bestand ordenen', exact: true })
     .click();
@@ -172,4 +168,33 @@ test('processing, notification states, and parameterized service messages are Du
     })
   );
   await expect(page.getByRole('alert')).toContainText('CSV-rij 4 is ongeldig');
+});
+
+test('map view labels follow the language without changing the results', async ({
+  page
+}) => {
+  await page.route('**/api/config', (route) =>
+    route.fulfill({ json: { google: false, email: false, mapbox: 'pk.test' } })
+  );
+  // Exercise our map interface without calling the paid map provider.
+  await page.route('https://api.mapbox.com/**', (route) => route.abort());
+  await page.route('https://events.mapbox.com/**', (route) => route.abort());
+  await page.goto('/');
+  await expect(page.locator('.dropzone')).toBeEnabled();
+  await page.locator('input[type=file]').setInputFiles('static/example.csv');
+  await page
+    .getByRole('button', { name: 'Bestand ordenen', exact: true })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Klaar om na te kijken.' })
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Kaart', exact: true }).click();
+  await expect(page.getByLabel('Kleuren van kaartmarkeringen')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText(
+    'van 3 records hebben coördinaten'
+  );
+  await page.getByRole('combobox', { name: 'Taal' }).selectOption('en');
+  await expect(page.getByLabel('Marker colours')).toBeVisible();
+  await page.getByRole('button', { name: 'List', exact: true }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(3);
 });

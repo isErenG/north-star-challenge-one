@@ -38,6 +38,27 @@ test('CSV upload, review, durable edits, filtering, and JSON / CSV / GeoJSON dow
     path: '.context/results-desktop.png',
     fullPage: true
   });
+  const mapButton = page.getByRole('button', { name: 'Map', exact: true });
+  const mapConfigured = await mapButton.isEnabled();
+  if (mapConfigured) {
+    await mapButton.click();
+    await expect(
+      page.getByText('3 of 3 records have coordinates')
+    ).toBeVisible();
+    await expect(page.locator('.mapboxgl-canvas')).toBeVisible();
+    await expect(page.getByText('Loading map…')).toBeHidden({ timeout: 20000 });
+    await page.locator('.map-frame').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '.context/results-map.png' });
+    await page.getByRole('button', { name: 'Needs review' }).click();
+    await expect(
+      page.getByText('2 of 2 records have coordinates')
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'All records' }).click();
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+  } else {
+    await expect(mapButton).toHaveAttribute('title', /MAPBOX_ACCESS_TOKEN/);
+  }
+  await expect(page.locator('tbody tr')).toHaveCount(3);
   await page
     .getByRole('button', { name: 'Review Voorbeeld Atelier', exact: true })
     .first()

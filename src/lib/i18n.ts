@@ -4,6 +4,38 @@ export function resolveLocale(value: string | undefined): Locale {
   return value === 'en' ? 'en' : 'nl';
 }
 const nl: Record<string, string> = {
+  'View as': 'Weergave',
+  List: 'Lijst',
+  Map: 'Kaart',
+  'Show records on a map': 'Toon records op de kaart',
+  'Set MAPBOX_ACCESS_TOKEN to enable the map view':
+    'Stel MAPBOX_ACCESS_TOKEN in om de kaartweergave te activeren',
+  'Marker colours': 'Kleuren van kaartmarkeringen',
+  'Map of business locations': 'Kaart met bedrijfslocaties',
+  'Map unavailable': 'Kaart niet beschikbaar',
+  'Loading map…': 'Kaart wordt geladen…',
+  'No records with coordinates in this view':
+    'Geen records met coördinaten in deze weergave',
+  'Try another filter or search.':
+    'Probeer een ander filter of een andere zoekopdracht.',
+  'The map could not be loaded. Check the Mapbox token.':
+    'De kaart kon niet worden geladen. Controleer het Mapbox-token.',
+  'The map could not be loaded.': 'De kaart kon niet worden geladen.',
+  '{count} of {total} records have coordinates':
+    '{count} van {total} records hebben coördinaten',
+  '{count} without coordinates are only shown in the list':
+    '{count} zonder coördinaten worden alleen in de lijst getoond',
+  '1 without coordinates is only shown in the list':
+    '1 zonder coördinaten wordt alleen in de lijst getoond',
+  'Zoom in': 'Inzoomen',
+  'Zoom out': 'Uitzoomen',
+  'Reset bearing to north': 'Kaart naar het noorden draaien',
+  'Use two fingers to move the map':
+    'Gebruik twee vingers om de kaart te verplaatsen',
+  'Use Ctrl + scroll to zoom the map':
+    'Gebruik Ctrl + scrollen om de kaart te zoomen',
+  'Use ⌘ + scroll to zoom the map':
+    'Gebruik ⌘ + scrollen om de kaart te zoomen',
   '1 record needs a closer look.': '1 record moet worden nagekeken.',
   'Results could not be saved. Please try again.':
     'De resultaten konden niet worden opgeslagen. Probeer het opnieuw.',

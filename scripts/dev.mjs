@@ -11,13 +11,12 @@ if (spawnSync(go, ['version']).status !== 0) {
 }
 const env = { ...process.env, GOTOOLCHAIN: 'local' };
 const binary = resolve('.context/kbo-review');
-const built = spawnSync(go, ['build', '-o', binary, '.'], {
-  cwd: 'server',
+const built = spawnSync(go, ['build', '-o', binary, './cmd/kbo-review'], {
   env,
   stdio: 'inherit'
 });
 if (built.status !== 0) process.exit(built.status ?? 1);
-const api = spawn(binary, [], { cwd: 'server', env, stdio: 'inherit' });
+const api = spawn(binary, [], { env, stdio: 'inherit' });
 const web = spawn(
   process.execPath,
   [

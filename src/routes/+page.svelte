@@ -47,12 +47,10 @@
     localeCookie,
     translate,
     translateMessage,
+    resolveLocale,
     type Locale
   } from '$lib/i18n';
-  import type { PageData } from './$types';
-  let { data }: { data: PageData } = $props();
-  let selectedLocale = $state<Locale | null>(null);
-  const locale = $derived(selectedLocale ?? data.locale);
+  let locale = $state<Locale>('nl');
   const numberFormat = $derived(
     new Intl.NumberFormat(locale === 'nl' ? 'nl-BE' : 'en-GB')
   );
@@ -61,17 +59,18 @@
   const message = (value: string) => translateMessage(locale, value);
   const number = (value: number) => numberFormat.format(value);
   function changeLanguage(value: string) {
-    selectedLocale = value === 'en' ? 'en' : 'nl';
-    document.cookie = `${localeCookie}=${selectedLocale}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+    locale = resolveLocale(value);
+    document.cookie = `${localeCookie}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
   }
   $effect(() => {
     document.documentElement.lang = locale;
   });
   import Icon from '$lib/Icon.svelte';
+  import MapView from '$lib/MapView.svelte';
   import { download, exportJob, needsReview } from '$lib/export';
   import type { Job, Business } from '$lib/types';
   let screen = $state<'upload' | 'processing' | 'results'>('upload');
-  let config = $state({ google: false, email: false });
+  let config = $state({ google: false, email: false, mapbox: '' });
   let file = $state<File | null>(null);
   let dragover = $state(false);
   let hydrated = $state(false);
@@ -82,6 +81,7 @@
   let job = $state<Job | null>(null);
   let query = $state('');
   let filter = $state('all');
+  let view = $state<'list' | 'map'>('list');
   let page = $state(0);
   let editor = $state<Business | null>(null);
   let editorError = $state('');
@@ -127,6 +127,12 @@
     return data;
   }
   onMount(() => {
+    locale = resolveLocale(
+      document.cookie
+        .split('; ')
+        .find((value) => value.startsWith(localeCookie + '='))
+        ?.split('=')[1]
+    );
     hydrated = true;
     api('config')
       .then((data) => (config = data))
@@ -212,6 +218,7 @@
     error = '';
     query = '';
     filter = 'all';
+    view = 'list';
     page = 0;
     notificationMessage = '';
     editor = null;
@@ -781,106 +788,134 @@
               >{t('Missing contact info')}</button
             >
           </div>
-          <label class="search-input"
-            ><Icon name="search" size={17} /><input
-              aria-label={t('Search businesses')}
-              bind:value={query}
-              placeholder={t('Find a name, number or address…')}
-            /></label
-          >
-        </div>
-        <div class="table-scroll">
-          <table class="table">
-            <thead
-              ><tr
-                ><th>{t('Business / identifier')}</th><th>{t('Address')}</th><th
-                  >{t('Source status')}</th
-                ><th>{t('Review')}</th><th
-                  ><span class="sr-only">{t('Actions')}</span></th
-                ></tr
-              ></thead
-            ><tbody
-              >{#each visible as row}<tr
-                  ><td
-                    ><strong>{row.name || t('Unnamed business')}</strong><span
-                      class="row-secondary"
-                      >{row.number || t('No identifier')}
-                      <span class="dot-divider">·</span>
-                      {row.kind === 'establishment'
-                        ? t('Establishment')
-                        : t('Enterprise')}</span
-                    ></td
-                  ><td class="address-cell"
-                    >{row.address || t('No address provided')}</td
-                  ><td
-                    ><span class="source-status"
-                      >{row.status || t('Not provided')}</span
-                    ></td
-                  ><td
-                    >{#if row.reviewed}<span class="badge reviewed-badge"
-                        ><Icon name="check" size={12} />{t('Reviewed')}</span
-                      >{:else if needsReview(row)}<span
-                        class="badge attention-badge">{t('Needs review')}</span
-                      >{:else}<span class="badge neutral-badge"
-                        >{t('Checks passed')}</span
-                      >{/if}<span class="row-secondary"
-                      >{message(row.issues[0] ?? '') ||
-                        (row.google
-                          ? t('Google Maps candidate')
-                          : row.googleError
-                            ? t('Google Maps unavailable')
-                            : t('Source checks only'))}</span
-                    ></td
-                  ><td
-                    ><button
-                      class="review-button"
-                      onclick={() => openEditor(row)}
-                      aria-label={t('Review {name}', {
-                        name: row.name || t('Unnamed business')
-                      })}
-                      >{t('Review')} <Icon name="chevron" size={15} /></button
-                    ></td
-                  ></tr
-                >{/each}</tbody
+          <div class="toolbar-right">
+            <label class="search-input"
+              ><Icon name="search" size={17} /><input
+                aria-label={t('Search businesses')}
+                bind:value={query}
+                placeholder={t('Find a name, number or address…')}
+              /></label
             >
-          </table>
-          {#if filtered.length === 0}<div class="empty-state">
-              <Icon name="search" size={26} />
-              <h3>{t('No records match this view')}</h3>
-              <p>{t('Try another search or return to all records.')}</p>
+            <div class="view-toggle" role="group" aria-label={t('View as')}>
               <button
-                class="btn btn-outline"
-                onclick={() => {
-                  query = '';
-                  filter = 'all';
-                }}>{t('Show all records')}</button
+                class:active={view === 'list'}
+                aria-pressed={view === 'list'}
+                onclick={() => (view = 'list')}
+                ><Icon name="layers" size={14} /> {t('List')}</button
+              ><button
+                class:active={view === 'map'}
+                aria-pressed={view === 'map'}
+                disabled={!config.mapbox}
+                title={config.mapbox
+                  ? t('Show records on a map')
+                  : t('Set MAPBOX_ACCESS_TOKEN to enable the map view')}
+                onclick={() => (view = 'map')}
+                ><Icon name="pin" size={14} /> {t('Map')}</button
               >
-            </div>{/if}
-        </div>
-        <div class="pagination">
-          <span
-            >{filtered.length
-              ? t('{start}–{end} of {count} records', {
-                  start: number(page * 20 + 1),
-                  end: number(Math.min((page + 1) * 20, filtered.length)),
-                  count: number(filtered.length)
-                })
-              : t('0 records')}</span
-          >
-          <div>
-            <button
-              class="btn btn-sm btn-ghost"
-              disabled={page === 0}
-              onclick={() => page--}
-              ><Icon name="back" size={15} />{t('Previous')}</button
-            ><button
-              class="btn btn-sm btn-ghost"
-              disabled={(page + 1) * 20 >= filtered.length}
-              onclick={() => page++}
-              >{t('Next')}<Icon name="arrow" size={15} /></button
-            >
+            </div>
           </div>
         </div>
+        {#if view === 'map' && config.mapbox}
+          {#key locale}<MapView
+              {locale}
+              rows={filtered}
+              token={config.mapbox}
+              onopen={openEditor}
+            />{/key}
+        {:else}
+          <div class="table-scroll">
+            <table class="table">
+              <thead
+                ><tr
+                  ><th>{t('Business / identifier')}</th><th>{t('Address')}</th
+                  ><th>{t('Source status')}</th><th>{t('Review')}</th><th
+                    ><span class="sr-only">{t('Actions')}</span></th
+                  ></tr
+                ></thead
+              ><tbody
+                >{#each visible as row}<tr
+                    ><td
+                      ><strong>{row.name || t('Unnamed business')}</strong><span
+                        class="row-secondary"
+                        >{row.number || t('No identifier')}
+                        <span class="dot-divider">·</span>
+                        {row.kind === 'establishment'
+                          ? t('Establishment')
+                          : t('Enterprise')}</span
+                      ></td
+                    ><td class="address-cell"
+                      >{row.address || t('No address provided')}</td
+                    ><td
+                      ><span class="source-status"
+                        >{row.status || t('Not provided')}</span
+                      ></td
+                    ><td
+                      >{#if row.reviewed}<span class="badge reviewed-badge"
+                          ><Icon name="check" size={12} />{t('Reviewed')}</span
+                        >{:else if needsReview(row)}<span
+                          class="badge attention-badge"
+                          >{t('Needs review')}</span
+                        >{:else}<span class="badge neutral-badge"
+                          >{t('Checks passed')}</span
+                        >{/if}<span class="row-secondary"
+                        >{message(row.issues[0] ?? '') ||
+                          (row.google
+                            ? t('Google Maps candidate')
+                            : row.googleError
+                              ? t('Google Maps unavailable')
+                              : t('Source checks only'))}</span
+                      ></td
+                    ><td
+                      ><button
+                        class="review-button"
+                        onclick={() => openEditor(row)}
+                        aria-label={t('Review {name}', {
+                          name: row.name || t('Unnamed business')
+                        })}
+                        >{t('Review')} <Icon name="chevron" size={15} /></button
+                      ></td
+                    ></tr
+                  >{/each}</tbody
+              >
+            </table>
+            {#if filtered.length === 0}<div class="empty-state">
+                <Icon name="search" size={26} />
+                <h3>{t('No records match this view')}</h3>
+                <p>{t('Try another search or return to all records.')}</p>
+                <button
+                  class="btn btn-outline"
+                  onclick={() => {
+                    query = '';
+                    filter = 'all';
+                  }}>{t('Show all records')}</button
+                >
+              </div>{/if}
+          </div>
+          <div class="pagination">
+            <span
+              >{filtered.length
+                ? t('{start}–{end} of {count} records', {
+                    start: number(page * 20 + 1),
+                    end: number(Math.min((page + 1) * 20, filtered.length)),
+                    count: number(filtered.length)
+                  })
+                : t('0 records')}</span
+            >
+            <div>
+              <button
+                class="btn btn-sm btn-ghost"
+                disabled={page === 0}
+                onclick={() => page--}
+                ><Icon name="back" size={15} />{t('Previous')}</button
+              ><button
+                class="btn btn-sm btn-ghost"
+                disabled={(page + 1) * 20 >= filtered.length}
+                onclick={() => page++}
+                >{t('Next')}<Icon name="arrow" size={15} /></button
+              >
+            </div>
+          </div>
+        {/if}
       </section>
       <div class="results-footnote">
         <p>
